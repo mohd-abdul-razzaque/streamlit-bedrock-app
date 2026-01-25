@@ -132,32 +132,31 @@ def invoke_agentcore(query: str) -> str:
         output = result.stdout.strip() if result.stdout else ""
         error_output = result.stderr.strip() if result.stderr else ""
         
-        if result.returncode == 0 or output:
+        # Debug: log raw output
+        st.write(f"DEBUG - Return Code: {result.returncode}")
+        st.write(f"DEBUG - Stdout: {output[:200]}")
+        st.write(f"DEBUG - Stderr: {error_output[:200]}")
+        
+        if result.returncode == 0 or output or error_output:
             full_output = output + "\n" + error_output if output and error_output else (output or error_output)
             
             if full_output:
                 lines = full_output.split('\n')
-                for i, line in enumerate(lines):
-                    if 'Response:' in line:
-                        response_text = line.split('Response:', 1)[1].strip()
-                        if response_text:
-                            return response_text
-                        for next_line in lines[i+1:]:
-                            next_line = next_line.strip()
-                            if next_line and not next_line.startswith('+'):
-                                return next_line
-                
-                for line in reversed(lines):
+                # Look for any line that contains actual answer
+                for line in lines:
                     line = line.strip()
-                    if line and not line.startswith('+') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
-                        if len(line) > 5:
-                            return line
+                    if line and len(line) > 10 and not line.startswith('+') and not line.startswith('|') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
+                        return line
+                
+                # If nothing found, return first substantial line
+                for line in lines:
+                    line = line.strip()
+                    if line and len(line) > 5:
+                        return line
                 
                 return full_output if full_output else "No response"
         else:
-            # Return detailed error info
-            error_msg = error_output if error_output else f"Return code: {result.returncode}"
-            return f"❌ Agent Error: {error_msg}"
+            return "❌ No output from agent"
             
     except subprocess.TimeoutExpired:
         return "⏱️ Agent call timed out (>2 minutes)"
