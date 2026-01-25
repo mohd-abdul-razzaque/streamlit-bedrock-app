@@ -1,11 +1,9 @@
 import streamlit as st
 import boto3
 import hashlib
-import hmac
 from datetime import datetime
-import requests
 import json
-import uuid
+import subprocess
 import os
 
 # Load AWS credentials from Streamlit secrets or environment
@@ -94,106 +92,29 @@ def authenticate_user(email: str, password: str) -> dict:
         return None
 
 def invoke_agentcore(query: str) -> str:
-    """Call Bedrock AgentCore via subprocess or HTTP"""
-    import subprocess
-    import json
-    import requests
-    import os
-    
-    # First try: HTTP endpoint (for cloud deployment)
-    agentcore_url = os.getenv('AGENTCORE_HTTP_URL', None)
-    if agentcore_url:
-        try:
-            payload = {
-                "prompt": query,
-                "session_id": f"streamlit_{st.session_state.user['email'].replace('@', '_').replace('.', '_')}"
-            }
-            response = requests.post(
-                f"{agentcore_url}/invoke",
-                json=payload,
-                timeout=120
-            )
-            if response.status_code == 200:
-                result = response.json()
-                return result.get('response', result.get('answer', 'No response'))
-        except Exception as e:
-            # Fall through to CLI
-            pass
-    
-    # Second try: CLI (for local execution)
     try:
-        import os
-        
-        # Get the directory where this script is located
-        app_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Create a temporary config file if it doesn't exist (for Streamlit Cloud)
-        config_path = os.path.join(app_dir, '.bedrock_agentcore.yaml')
-        if not os.path.exists(config_path):
-            # Create minimal config for Streamlit Cloud
-            config_content = """default_agent: test1
-agents:
-  test1:
-    name: test1
-    language: python
-    entrypoint: main.py
-    deployment_type: container
-    runtime_type: null
-    platform: linux/arm64
-    aws:
-      account: '423781074828'
-      region: ap-south-1
-"""
-            with open(config_path, 'w') as f:
-                f.write(config_content)
-        
-        payload_str = json.dumps({"prompt": query})
         result = subprocess.run(
-            ["agentcore", "invoke", payload_str],
+            ["agentcore", "invoke", json.dumps({"prompt": query})],
             capture_output=True,
             text=True,
             timeout=120,
-            cwd=app_dir  # Run from app directory so agentcore can find config
+            cwd=os.path.dirname(__file__)
         )
+        output = (result.stdout + result.stderr).strip()
         
-        output = result.stdout.strip() if result.stdout else ""
-        error_output = result.stderr.strip() if result.stderr else ""
-        
-        if result.returncode == 0 or (output and "Response" in output):
-            full_output = output + "\n" + error_output if output and error_output else (output or error_output)
-            
-            if full_output:
-                lines = full_output.split('\n')
-                # Look for Response: pattern or last meaningful line
-                for i, line in enumerate(lines):
-                    if 'Response:' in line:
-                        response_text = line.split('Response:', 1)[1].strip()
-                        if response_text:
-                            return response_text
-                        # Get next line after Response:
-                        for j in range(i+1, len(lines)):
-                            next_line = lines[j].strip()
-                            if next_line and len(next_line) > 5 and not next_line.startswith('╭') and not next_line.startswith('│'):
-                                return next_line
-                
-                # Look for any substantial line (not formatting)
-                for line in reversed(lines):
-                    line = line.strip()
-                    if line and len(line) > 10 and not line.startswith('╭') and not line.startswith('│') and not line.startswith('╰'):
-                        if not line.startswith('⚠️') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
-                            return line
-                
-                return full_output if full_output else "No response"
-        else:
-            error_msg = error_output if error_output else output
-            return f"❌ Agent Error: {error_msg[:200]}"
-            
-    except subprocess.TimeoutExpired:
-        return "⏱️ Agent call timed out (>2 minutes)"
+        if output:
+            for line in output.split('\n'):
+                line = line.strip()
+                if line and len(line) > 10 and not line.startswith('╭') and not line.startswith('│') and not line.startswith('⚠️'):
+                    return line
+            return output
+        return "No response"
     except FileNotFoundError:
-        return "❌ AgentCore not available. Set AGENTCORE_HTTP_URL environment variable or install agentcore CLI locally"
+        return "AgentCore not installed"
+    except subprocess.TimeoutExpired:
+        return "Agent timeout"
     except Exception as e:
-        return f"❌ Error: {str(e)}"
+        return f"Error: {str(e)}"
 
 # Page configuration
 st.set_page_config(page_title="Agent Query System", layout="wide", initial_sidebar_state="expanded")
