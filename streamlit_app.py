@@ -94,75 +94,42 @@ def authenticate_user(email: str, password: str) -> dict:
         return None
 
 def invoke_agentcore(query: str) -> str:
-    """Call Bedrock AgentCore using Python API"""
-    import subprocess
-    import json
-    
+    """Call Bedrock AgentCore endpoint via AWS API"""
     try:
-        # Import bedrock-agentcore from installed package
-        from bedrock_agentcore.runtime import BedrockAgentCoreApp
+        session = get_boto3_session()
+        if not session:
+            return "❌ AWS credentials not configured"
         
-        # Create app instance
-        app = BedrockAgentCoreApp()
+        # Use bedrock-agentcore-runtime client
+        client = session.client('bedrock-agentcore-runtime', region_name='ap-south-1')
+        
+        # Agent details from your ARN
+        agent_id = 'test1-HBDXfJ46Xa'
+        endpoint_id = 'DEFAULT'
+        
+        # Create session ID
+        user_email_clean = st.session_state.user['email'].replace('@', '_').replace('.', '_')
+        session_id = f"streamlit_{user_email_clean}"[:64]
         
         # Invoke the agent
-        payload = {"prompt": query}
-        response = app.invoke(payload)
+        response = client.invoke_agent(
+            agentId=agent_id,
+            endpointId=endpoint_id,
+            sessionId=session_id,
+            promptText=query
+        )
         
-        # Extract response
-        if response:
-            if isinstance(response, dict):
-                answer = response.get('response', response.get('answer', str(response)))
-            else:
-                answer = str(response)
-            return answer if answer else "No response from agent"
-        return "No response from agent"
+        # Extract response from event stream
+        result_text = ""
+        if 'completion' in response:
+            result_text = response['completion']
+        elif 'output' in response:
+            # Handle event stream if needed
+            for event in response.get('output', []):
+                if 'chunk' in event and 'bytes' in event['chunk']:
+                    result_text += event['chunk']['bytes'].decode('utf-8')
         
-    except ImportError:
-        # Fallback: try CLI
-        try:
-            payload_str = json.dumps({"prompt": query})
-            result = subprocess.run(
-                ["agentcore", "invoke", payload_str],
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-            
-            if result.returncode == 0:
-                output = result.stdout.strip() if result.stdout else ""
-                error_output = result.stderr.strip() if result.stderr else ""
-                full_output = output + "\n" + error_output if output and error_output else (output or error_output)
-                
-                if full_output:
-                    lines = full_output.split('\n')
-                    for i, line in enumerate(lines):
-                        if 'Response:' in line:
-                            response_text = line.split('Response:', 1)[1].strip()
-                            if response_text:
-                                return response_text
-                            for next_line in lines[i+1:]:
-                                next_line = next_line.strip()
-                                if next_line and not next_line.startswith('+'):
-                                    return next_line
-                    
-                    for line in reversed(lines):
-                        line = line.strip()
-                        if line and not line.startswith('+') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
-                            if len(line) > 5:
-                                return line
-                    
-                    return full_output if full_output else "No response"
-            else:
-                error = result.stderr.strip() if result.stderr else "Unknown error"
-                return f"❌ Agent Error: {error}"
-                
-        except subprocess.TimeoutExpired:
-            return "⏱️ Agent call timed out (>2 minutes)"
-        except FileNotFoundError:
-            return "❌ AgentCore not available"
-        except Exception as e:
-            return f"❌ Error: {str(e)}"
+        return result_text if result_text else "No response from agent"
             
     except Exception as e:
         return f"❌ Error: {str(e)}"
