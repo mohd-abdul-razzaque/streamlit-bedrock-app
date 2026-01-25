@@ -100,8 +100,8 @@ def invoke_agentcore(query: str) -> str:
         if not session:
             return "❌ AWS credentials not configured"
         
-        # Use bedrock-agentcore-runtime client
-        client = session.client('bedrock-agentcore-runtime', region_name='ap-south-1')
+        # Use bedrock-agentcore client (correct service name)
+        client = session.client('bedrock-agentcore', region_name='ap-south-1')
         
         # Agent details from your ARN
         agent_id = 'test1-HBDXfJ46Xa'
