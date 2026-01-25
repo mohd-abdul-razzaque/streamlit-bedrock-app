@@ -94,43 +94,73 @@ def authenticate_user(email: str, password: str) -> dict:
         return None
 
 def invoke_agentcore(query: str) -> str:
-    """Call Bedrock AgentCore endpoint via AWS API"""
+    """Call Bedrock AgentCore via subprocess or HTTP"""
+    import subprocess
+    import json
+    import requests
+    
+    # First try: HTTP endpoint (for cloud deployment)
+    agentcore_url = os.getenv('AGENTCORE_HTTP_URL', None)
+    if agentcore_url:
+        try:
+            payload = {
+                "prompt": query,
+                "session_id": f"streamlit_{st.session_state.user['email'].replace('@', '_').replace('.', '_')}"
+            }
+            response = requests.post(
+                f"{agentcore_url}/invoke",
+                json=payload,
+                timeout=120
+            )
+            if response.status_code == 200:
+                result = response.json()
+                return result.get('response', result.get('answer', 'No response'))
+        except Exception as e:
+            # Fall through to CLI
+            pass
+    
+    # Second try: CLI (for local execution)
     try:
-        session = get_boto3_session()
-        if not session:
-            return "❌ AWS credentials not configured"
-        
-        # Use bedrock-agentcore client (correct service name)
-        client = session.client('bedrock-agentcore', region_name='ap-south-1')
-        
-        # Agent details from your ARN
-        agent_id = 'test1-HBDXfJ46Xa'
-        endpoint_id = 'DEFAULT'
-        
-        # Create session ID
-        user_email_clean = st.session_state.user['email'].replace('@', '_').replace('.', '_')
-        session_id = f"streamlit_{user_email_clean}"[:64]
-        
-        # Invoke the agent
-        response = client.invoke_agent(
-            agentId=agent_id,
-            endpointId=endpoint_id,
-            sessionId=session_id,
-            promptText=query
+        payload_str = json.dumps({"prompt": query})
+        result = subprocess.run(
+            ["agentcore", "invoke", payload_str],
+            capture_output=True,
+            text=True,
+            timeout=120
         )
         
-        # Extract response from event stream
-        result_text = ""
-        if 'completion' in response:
-            result_text = response['completion']
-        elif 'output' in response:
-            # Handle event stream if needed
-            for event in response.get('output', []):
-                if 'chunk' in event and 'bytes' in event['chunk']:
-                    result_text += event['chunk']['bytes'].decode('utf-8')
-        
-        return result_text if result_text else "No response from agent"
+        if result.returncode == 0:
+            output = result.stdout.strip() if result.stdout else ""
+            error_output = result.stderr.strip() if result.stderr else ""
+            full_output = output + "\n" + error_output if output and error_output else (output or error_output)
             
+            if full_output:
+                lines = full_output.split('\n')
+                for i, line in enumerate(lines):
+                    if 'Response:' in line:
+                        response_text = line.split('Response:', 1)[1].strip()
+                        if response_text:
+                            return response_text
+                        for next_line in lines[i+1:]:
+                            next_line = next_line.strip()
+                            if next_line and not next_line.startswith('+'):
+                                return next_line
+                
+                for line in reversed(lines):
+                    line = line.strip()
+                    if line and not line.startswith('+') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
+                        if len(line) > 5:
+                            return line
+                
+                return full_output if full_output else "No response"
+        else:
+            error = result.stderr.strip() if result.stderr else "Unknown error"
+            return f"❌ Agent Error: {error}"
+            
+    except subprocess.TimeoutExpired:
+        return "⏱️ Agent call timed out (>2 minutes)"
+    except FileNotFoundError:
+        return "❌ AgentCore not available. Set AGENTCORE_HTTP_URL environment variable or install agentcore CLI locally"
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
