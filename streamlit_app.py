@@ -121,42 +121,54 @@ def invoke_agentcore(query: str) -> str:
     
     # Second try: CLI (for local execution)
     try:
+        import os
+        
+        # Get the directory where this script is located
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        
         payload_str = json.dumps({"prompt": query})
         result = subprocess.run(
             ["agentcore", "invoke", payload_str],
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=120,
+            cwd=app_dir  # Run from app directory so agentcore can find config
         )
         
         output = result.stdout.strip() if result.stdout else ""
         error_output = result.stderr.strip() if result.stderr else ""
         
-        # Debug: log raw output
-        st.write(f"DEBUG - Return Code: {result.returncode}")
-        st.write(f"DEBUG - Stdout: {output[:200]}")
-        st.write(f"DEBUG - Stderr: {error_output[:200]}")
-        
-        if result.returncode == 0 or output or error_output:
+        if result.returncode == 0 or (output and "Response" in output):
             full_output = output + "\n" + error_output if output and error_output else (output or error_output)
             
             if full_output:
                 lines = full_output.split('\n')
-                # Look for any line that contains actual answer
-                for line in lines:
-                    line = line.strip()
-                    if line and len(line) > 10 and not line.startswith('+') and not line.startswith('|') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
-                        return line
+                # Look for Response: pattern or last meaningful line
+                for i, line in enumerate(lines):
+                    if 'Response:' in line:
+                        response_text = line.split('Response:', 1)[1].strip()
+                        if response_text:
+                            return response_text
+                        # Get next line after Response:
+                        for j in range(i+1, len(lines)):
+                            next_line = lines[j].strip()
+                            if next_line and len(next_line) > 5 and not next_line.startswith('╭') and not next_line.startswith('│'):
+                                return next_line
                 
-                # If nothing found, return first substantial line
-                for line in lines:
+                # Look for any substantial line (not formatting)
+                for line in reversed(lines):
                     line = line.strip()
-                    if line and len(line) > 5:
-                        return line
+                    if line and len(line) > 10 and not line.startswith('╭') and not line.startswith('│') and not line.startswith('╰'):
+                        if not line.startswith('⚠️') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
+                            return line
                 
                 return full_output if full_output else "No response"
         else:
-            return "❌ No output from agent"
+            # Show the actual error from agentcore
+            if "Configuration Not Found" in error_output or "Configuration Not Found" in output:
+                return "❌ AgentCore config not found - ensure .bedrock_agentcore.yaml exists in project"
+            error_msg = error_output if error_output else output
+            return f"❌ Agent Error: {error_msg[:200]}"
             
     except subprocess.TimeoutExpired:
         return "⏱️ Agent call timed out (>2 minutes)"
