@@ -1,0 +1,101 @@
+customer_id,customer_name,customer_type,country,created_at
+1,David Smith,Individual,Vanuatu,2025-05-03 16:51:18
+2,Calvin Garcia,Corporate,Saint Martin,2024-10-31 04:33:31
+3,Janice Mcdaniel,Corporate,Bolivia,2024-02-13 20:07:31
+4,Donna Frazier,Individual,Saudi Arabia,2025-01-22 04:08:02
+5,Denise Thompson,Corporate,Micronesia,2025-06-20 19:35:46
+6,Elizabeth Ortiz,Individual,Vietnam,2025-08-24 08:20:02
+7,Anthony Klein,Fleet,Congo,2025-09-11 08:17:17
+8,David Adams,Fleet,Monaco,2024-03-10 16:47:31
+9,Natalie Hess,Corporate,Marshall Islands,2025-05-20 04:26:13
+10,Bruce Stokes,Fleet,Swaziland,2025-04-20 21:25:23
+11,Brent Bond,Individual,Brazil,2025-09-06 05:06:44
+12,Rebecca Thomas,Fleet,Yemen,2024-03-05 23:04:38
+13,Laura Morrow,Individual,United Arab Emirates,2025-12-02 13:55:09
+14,Katherine Trevino,Fleet,Egypt,2025-04-21 07:56:31
+15,James Velez,Corporate,Bhutan,2024-07-16 23:27:32
+16,Brandon Sanders,Fleet,Lebanon,2024-04-27 10:18:32
+17,Nathan Bowman,Fleet,Ecuador,2025-04-02 12:35:08
+18,Sarah Freeman,Fleet,Reunion,2025-04-20 14:08:09
+19,Nathan Henry,Individual,Pitcairn Islands,2025-08-27 23:27:44
+20,Christina Johnson,Individual,North Macedonia,2024-10-09 17:59:50
+21,Matthew Collins,Corporate,Jersey,2025-11-09 04:37:59
+22,Heidi Anderson,Individual,Palau,2025-11-07 00:29:06
+23,Anthony Scott,Fleet,Svalbard & Jan Mayen Islands,2025-11-20 03:35:27
+24,Katrina Green,Fleet,Tunisia,2024-06-06 15:36:50
+25,William Reed,Individual,Latvia,2024-08-10 16:57:24
+26,John Williams,Fleet,Uzbekistan,2025-10-25 01:56:40
+27,James Rose,Corporate,Faroe Islands,2025-01-06 05:42:01
+28,Mr. Michael Perez,Corporate,Paraguay,2026-01-10 08:41:19
+29,Emily Campbell,Individual,New Caledonia,2024-10-17 02:56:36
+30,Keith Villarreal,Individual,Niger,2025-10-12 07:45:53
+31,John Castaneda,Corporate,Chile,2024-05-26 21:32:28
+32,Keith Cameron,Corporate,Finland,2024-09-25 01:43:22
+33,Michael Gray,Individual,Albania,2024-08-28 21:26:36
+34,Paula Brennan,Individual,Bahamas,2025-12-02 17:30:40
+35,Christopher Carrillo,Individual,South Africa,2024-12-03 03:13:54
+36,Samantha Gardner,Fleet,Spain,2024-01-31 15:53:23
+37,Jessica Cox,Individual,Chad,2025-12-07 11:11:49
+38,Amanda Wilson,Individual,Saint Pierre and Miquelon,2025-09-06 14:01:23
+39,Tom Smith,Fleet,Ukraine,2025-04-17 09:03:53
+40,Margaret Gomez,Corporate,Saint Vincent and the Grenadines,2025-02-05 15:31:17
+41,Cheryl Buchanan,Individual,Saint Pierre and Miquelon,2026-01-09 23:49:55
+42,Emily Vance,Fleet,Andorra,2024-12-17 13:20:57
+43,Michael Weaver,Individual,Turkmenistan,2024-07-03 10:48:17
+44,Richard Kelley,Individual,Azerbaijan,2024-07-16 00:32:56
+45,Antonio Roberts,Fleet,Western Sahara,2025-12-01 04:58:10
+46,Donald Ware,Corporate,Argentina,2025-06-19 01:25:43
+47,Sarah Stewart,Fleet,Guinea,2024-02-22 01:57:08
+48,Jennifer Rangel,Individual,India,2026-01-07 06:04:08
+49,Angelica Mack,Corporate,Saint Lucia,2024-02-04 06:51:44
+50,April Lane,Fleet,Bosnia and Herzegovina,2025-09-18 22:18:25
+51,Karen Russell,Fleet,Poland,2024-08-16 15:53:19
+52,John Sherman,Corporate,Bahamas,2025-05-07 01:58:50
+53,David Jones,Individual,Montenegro,2024-05-07 19:36:47
+54,Kevin Thomas,Fleet,Netherlands,2025-04-26 04:48:45
+55,Tina Fuentes,Fleet,Zimbabwe,2025-09-14 08:35:47
+56,Sierra Smith,Fleet,Greenland,2025-12-20 03:27:06
+57,Kathy Escobar,Individual,Argentina,2025-12-23 02:48:12
+58,Aaron Larson,Fleet,Azerbaijan,2024-08-30 18:20:52
+59,Sara Smith,Corporate,Tunisia,2025-01-27 06:20:15
+60,Brian Flores,Corporate,Cape Verde,2025-08-08 15:50:44
+61,Samantha Herrera,Fleet,Pakistan,2025-02-05 09:40:24
+62,Emily Perkins,Fleet,Ghana,2024-06-17 13:02:13
+63,Jose Fleming,Corporate,North Macedonia,2025-08-04 16:26:50
+64,Todd Johns,Corporate,Anguilla,2024-08-08 14:08:41
+65,Mario Mccormick,Fleet,Djibouti,2024-11-08 22:32:22
+66,Tonya Jones,Corporate,Bulgaria,2025-03-18 00:57:54
+67,Tyler Wall PhD,Individual,Timor-Leste,2024-09-01 21:41:34
+68,Amy Montoya,Individual,Pakistan,2024-03-01 03:24:43
+69,Carol Hanson,Individual,China,2025-11-23 23:55:09
+70,Tiffany Martin,Individual,Wallis and Futuna,2024-11-15 00:33:48
+71,Beth Rangel,Corporate,Chad,2025-07-12 16:22:04
+72,Mary Brooks,Individual,Cape Verde,2025-01-09 16:07:55
+73,Robert Williams,Fleet,Mozambique,2025-07-30 17:37:03
+74,Michael Williams,Fleet,Austria,2025-10-06 08:55:07
+75,Timothy Farrell,Individual,Lebanon,2026-01-23 14:47:06
+76,Kylie Ballard,Fleet,Hungary,2024-05-26 02:50:58
+77,Rachael Cooper,Individual,Grenada,2024-09-20 11:41:01
+78,Christine Escobar,Individual,Malawi,2024-04-23 20:47:19
+79,Laura Martinez,Individual,Jamaica,2024-07-13 05:01:10
+80,Charles Golden,Fleet,Monaco,2025-08-26 14:42:36
+81,Sarah Fletcher,Fleet,Kazakhstan,2024-10-30 06:06:56
+82,Bruce Zhang,Individual,Papua New Guinea,2025-07-13 04:39:43
+83,Amber Blankenship,Individual,Saint Pierre and Miquelon,2025-12-06 13:22:17
+84,Andrew Rivera,Individual,Lithuania,2024-04-04 23:45:31
+85,Kathryn Taylor,Individual,Ukraine,2026-01-19 00:02:12
+86,Philip Alexander,Corporate,Cook Islands,2024-08-26 11:48:28
+87,Christopher Obrien,Individual,Cook Islands,2025-03-06 23:44:40
+88,Mr. Roy Ross,Fleet,Antarctica (the territory South of 60 deg S),2024-05-23 02:31:51
+89,Eric Fuller,Individual,Iceland,2024-03-28 00:24:45
+90,Stephen Huff,Corporate,Ukraine,2024-02-12 08:51:34
+91,Carmen Perez,Fleet,Mayotte,2026-01-16 23:32:28
+92,Brandon Allison,Corporate,Grenada,2025-12-20 13:05:14
+93,Stephanie Powers,Individual,Qatar,2025-05-03 13:24:47
+94,Shannon Williams,Fleet,Tajikistan,2024-03-13 17:20:41
+95,Danielle Taylor,Individual,Nigeria,2024-02-08 18:40:33
+96,Shawn Davis,Fleet,Australia,2025-06-20 21:02:09
+97,Lauren Smith,Fleet,Holy See (Vatican City State),2025-03-18 03:04:36
+98,Brian Powell,Fleet,Trinidad and Tobago,2024-06-15 16:22:32
+99,Jessica Briggs,Corporate,Micronesia,2024-02-22 17:56:42
+100,Jennifer Medina,Individual,Burundi,2026-01-02 10:10:07
