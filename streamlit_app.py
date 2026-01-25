@@ -102,13 +102,14 @@ def invoke_agentcore(query: str) -> str:
         )
         output = (result.stdout + result.stderr).strip()
         
-        if output:
-            for line in output.split('\n'):
-                line = line.strip()
-                if line and len(line) > 10 and not line.startswith('╭') and not line.startswith('│') and not line.startswith('⚠️'):
-                    return line
-            return output
-        return "No response"
+        if not output:
+            return "No response from agent"
+        
+        lines = [line.strip() for line in output.split('\n') if line.strip()]
+        for line in lines:
+            if not line.startswith(('╭', '│', '╰', '⚠️', 'Invoke')):
+                return line
+        return output
     except FileNotFoundError:
         return "AgentCore not installed"
     except subprocess.TimeoutExpired:
