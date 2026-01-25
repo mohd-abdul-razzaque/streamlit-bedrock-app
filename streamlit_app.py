@@ -142,10 +142,16 @@ def invoke_agentcore(query: str) -> str:
             return "❌ AWS credentials not configured"
         
         client = session.client('bedrock-agent-runtime', region_name='ap-south-1')
+        
+        # Extract valid agent ID and create valid session ID
+        agent_id = 'HBDXfJ46Xa'  # Must be ≤10 alphanumeric chars
+        user_email_clean = st.session_state.user['email'].replace('@', '_').replace('.', '_')
+        session_id = f"streamlit_{user_email_clean}"[:32]  # Max 32 chars, alphanumeric._:-
+        
         response = client.invoke_agent(
-            agentId='test1-HBDXfJ46Xa',
+            agentId=agent_id,
             agentAliasId='TSTALIASID',
-            sessionId=f"streamlit-{st.session_state.user['email']}",
+            sessionId=session_id,
             inputText=query
         )
         
