@@ -94,61 +94,30 @@ def authenticate_user(email: str, password: str) -> dict:
         return None
 
 def invoke_agentcore(query: str) -> str:
-    """Call Bedrock AgentCore via HTTP API"""
+    """Call Bedrock AgentCore using Python API"""
     try:
-        import requests
+        # Import bedrock-agentcore from installed package
+        from bedrock_agentcore.runtime import BedrockAgentCoreApp
         import json
         
-        # Get AWS session for signing requests
-        session = get_boto3_session()
-        if not session:
-            return "❌ AWS credentials not configured"
+        # Create app instance
+        app = BedrockAgentCoreApp()
         
-        # Use AWS SigV4 for signed requests
-        from botocore.auth import SigV4Auth
-        from botocore.awsrequest import AWSRequest
+        # Invoke the agent
+        payload = {"prompt": query}
+        response = app.invoke(payload)
         
-        # AgentCore runtime endpoint
-        agent_arn = 'test1-HBDXfJ46Xa'
-        endpoint = f'https://bedrock-agentcore.ap-south-1.amazonaws.com/runtime/{agent_arn}/invoke'
+        # Extract response
+        if response:
+            if isinstance(response, dict):
+                answer = response.get('response', response.get('answer', str(response)))
+            else:
+                answer = str(response)
+            return answer if answer else "No response from agent"
+        return "No response from agent"
         
-        # Prepare request
-        payload = {
-            'promptText': query,
-            'sessionId': f"streamlit_{st.session_state.user['email'].replace('@', '_').replace('.', '_')}"[:64]
-        }
-        
-        # Create AWS signed request
-        credentials = session.get_credentials()
-        request = AWSRequest(
-            method='POST',
-            url=endpoint,
-            data=json.dumps(payload),
-            headers={'Content-Type': 'application/x-amz-json-1.1'}
-        )
-        
-        SigV4Auth(credentials, 'bedrock-agentcore-runtime', 'ap-south-1').add_auth(request)
-        
-        # Make the request
-        response = requests.post(
-            endpoint,
-            data=request.body,
-            headers=dict(request.headers),
-            timeout=120
-        )
-        
-        if response.status_code == 200:
-            try:
-                result = response.json()
-                answer = result.get('completion', result.get('response', ''))
-                return answer if answer else "No response from agent"
-            except:
-                return response.text if response.text else "No response"
-        else:
-            return f"❌ Error {response.status_code}: {response.text}"
-            
-    except Exception as e:
-        # Fallback: try local CLI
+    except ImportError:
+        # Fallback: try CLI
         try:
             import subprocess
             import json
@@ -185,9 +154,15 @@ def invoke_agentcore(query: str) -> str:
                                 return line
                     
                     return full_output if full_output else "No response"
-        except:
-            pass
-        
+            else:
+                error = result.stderr.strip() if result.stderr else "Unknown error"
+                return f"❌ Agent Error: {error}"
+        except Exception as e:
+            return f"❌ Error: {str(e)}"
+            
+    except subprocess.TimeoutExpired:
+        return "⏱️ Agent call timed out (>2 minutes)"
+    except Exception as e:
         return f"❌ Error: {str(e)}"
 
 # Page configuration
