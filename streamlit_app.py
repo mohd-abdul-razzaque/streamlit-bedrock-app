@@ -127,6 +127,26 @@ def invoke_agentcore(query: str) -> str:
         # Get the directory where this script is located
         app_dir = os.path.dirname(os.path.abspath(__file__))
         
+        # Create a temporary config file if it doesn't exist (for Streamlit Cloud)
+        config_path = os.path.join(app_dir, '.bedrock_agentcore.yaml')
+        if not os.path.exists(config_path):
+            # Create minimal config for Streamlit Cloud
+            config_content = """default_agent: test1
+agents:
+  test1:
+    name: test1
+    language: python
+    entrypoint: main.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    aws:
+      account: '423781074828'
+      region: ap-south-1
+"""
+            with open(config_path, 'w') as f:
+                f.write(config_content)
+        
         payload_str = json.dumps({"prompt": query})
         result = subprocess.run(
             ["agentcore", "invoke", payload_str],
@@ -165,9 +185,6 @@ def invoke_agentcore(query: str) -> str:
                 
                 return full_output if full_output else "No response"
         else:
-            # Show the actual error from agentcore
-            if "Configuration Not Found" in error_output or "Configuration Not Found" in output:
-                return "❌ AgentCore config not found - ensure .bedrock_agentcore.yaml exists in project"
             error_msg = error_output if error_output else output
             return f"❌ Agent Error: {error_msg[:200]}"
             
