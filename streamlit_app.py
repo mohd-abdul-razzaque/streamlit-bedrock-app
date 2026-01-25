@@ -98,6 +98,7 @@ def invoke_agentcore(query: str) -> str:
     import subprocess
     import json
     import requests
+    import os
     
     # First try: HTTP endpoint (for cloud deployment)
     agentcore_url = os.getenv('AGENTCORE_HTTP_URL', None)
