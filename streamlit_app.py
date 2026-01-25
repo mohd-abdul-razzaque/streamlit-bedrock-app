@@ -129,9 +129,10 @@ def invoke_agentcore(query: str) -> str:
             timeout=120
         )
         
-        if result.returncode == 0:
-            output = result.stdout.strip() if result.stdout else ""
-            error_output = result.stderr.strip() if result.stderr else ""
+        output = result.stdout.strip() if result.stdout else ""
+        error_output = result.stderr.strip() if result.stderr else ""
+        
+        if result.returncode == 0 or output:
             full_output = output + "\n" + error_output if output and error_output else (output or error_output)
             
             if full_output:
@@ -154,8 +155,9 @@ def invoke_agentcore(query: str) -> str:
                 
                 return full_output if full_output else "No response"
         else:
-            error = result.stderr.strip() if result.stderr else "Unknown error"
-            return f"❌ Agent Error: {error}"
+            # Return detailed error info
+            error_msg = error_output if error_output else f"Return code: {result.returncode}"
+            return f"❌ Agent Error: {error_msg}"
             
     except subprocess.TimeoutExpired:
         return "⏱️ Agent call timed out (>2 minutes)"
