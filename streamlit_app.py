@@ -95,10 +95,12 @@ def authenticate_user(email: str, password: str) -> dict:
 
 def invoke_agentcore(query: str) -> str:
     """Call Bedrock AgentCore using Python API"""
+    import subprocess
+    import json
+    
     try:
         # Import bedrock-agentcore from installed package
         from bedrock_agentcore.runtime import BedrockAgentCoreApp
-        import json
         
         # Create app instance
         app = BedrockAgentCoreApp()
@@ -119,9 +121,6 @@ def invoke_agentcore(query: str) -> str:
     except ImportError:
         # Fallback: try CLI
         try:
-            import subprocess
-            import json
-            
             payload_str = json.dumps({"prompt": query})
             result = subprocess.run(
                 ["agentcore", "invoke", payload_str],
@@ -157,11 +156,14 @@ def invoke_agentcore(query: str) -> str:
             else:
                 error = result.stderr.strip() if result.stderr else "Unknown error"
                 return f"❌ Agent Error: {error}"
+                
+        except subprocess.TimeoutExpired:
+            return "⏱️ Agent call timed out (>2 minutes)"
+        except FileNotFoundError:
+            return "❌ AgentCore not available"
         except Exception as e:
             return f"❌ Error: {str(e)}"
             
-    except subprocess.TimeoutExpired:
-        return "⏱️ Agent call timed out (>2 minutes)"
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
