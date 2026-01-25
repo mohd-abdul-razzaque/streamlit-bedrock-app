@@ -93,18 +93,19 @@ def authenticate_user(email: str, password: str) -> dict:
 
 def invoke_agentcore(query: str) -> str:
     try:
+        # Primary attempt with extended timeout
         result = subprocess.run(
             ["agentcore", "invoke", json.dumps({"prompt": query})],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=300,
             cwd=os.path.dirname(__file__)
         )
         output = (result.stdout + result.stderr).strip()
-        
+
         if not output:
             return "No response from agent"
-        
+
         lines = [line.strip() for line in output.split('\n') if line.strip()]
         for line in lines:
             if not line.startswith(('╭', '│', '╰', '⚠️', 'Invoke')):
@@ -113,7 +114,27 @@ def invoke_agentcore(query: str) -> str:
     except FileNotFoundError:
         return "AgentCore not installed"
     except subprocess.TimeoutExpired:
-        return "Agent timeout"
+        # Single retry with a longer timeout
+        try:
+            retry = subprocess.run(
+                ["agentcore", "invoke", json.dumps({"prompt": query})],
+                capture_output=True,
+                text=True,
+                timeout=600,
+                cwd=os.path.dirname(__file__)
+            )
+            output = (retry.stdout + retry.stderr).strip()
+            if not output:
+                return "No response from agent"
+            lines = [line.strip() for line in output.split('\n') if line.strip()]
+            for line in lines:
+                if not line.startswith(('╭', '│', '╰', '⚠️', 'Invoke')):
+                    return line
+            return output
+        except subprocess.TimeoutExpired:
+            return "Agent timeout. Please verify the AgentCore container is running and responsive."
+        except Exception as e:
+            return f"Error after retry: {str(e)}"
     except Exception as e:
         return f"Error: {str(e)}"
 
