@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import subprocess
 import os
+import re
 
 # Load AWS credentials from Streamlit secrets or environment
 def get_boto3_session():
@@ -106,10 +107,28 @@ def invoke_agentcore(query: str) -> str:
         if not output:
             return "No response from agent"
 
-        lines = [line.strip() for line in output.split('\n') if line.strip()]
-        for line in lines:
-            if not line.startswith(('╭', '│', '╰', '⚠️', 'Invoke')):
-                return line
+        # Clean box-drawing borders and extract meaningful lines
+        def clean_line(s: str) -> str:
+            s = s.strip()
+            if not s:
+                return ""
+            # Remove leading/trailing box drawing chars and pipes
+            s = re.sub(r'^[\s\|\u2500-\u257F]+', '', s)
+            s = re.sub(r'[\s\|\u2500-\u257F]+$', '', s)
+            return s.strip()
+
+        lines = []
+        for raw in output.split('\n'):
+            cleaned = clean_line(raw)
+            if not cleaned:
+                continue
+            # Skip known non-content headers
+            if cleaned.startswith(('Invoke information', 'Warning', '⚠️')):
+                continue
+            lines.append(cleaned)
+
+        if lines:
+            return '\n'.join(lines)
         return output
     except FileNotFoundError:
         return "AgentCore not installed"
@@ -126,10 +145,26 @@ def invoke_agentcore(query: str) -> str:
             output = (retry.stdout + retry.stderr).strip()
             if not output:
                 return "No response from agent"
-            lines = [line.strip() for line in output.split('\n') if line.strip()]
-            for line in lines:
-                if not line.startswith(('╭', '│', '╰', '⚠️', 'Invoke')):
-                    return line
+
+            def clean_line_retry(s: str) -> str:
+                s = s.strip()
+                if not s:
+                    return ""
+                s = re.sub(r'^[\s\|\u2500-\u257F]+', '', s)
+                s = re.sub(r'[\s\|\u2500-\u257F]+$', '', s)
+                return s.strip()
+
+            lines = []
+            for raw in output.split('\n'):
+                cleaned = clean_line_retry(raw)
+                if not cleaned:
+                    continue
+                if cleaned.startswith(('Invoke information', 'Warning', '⚠️')):
+                    continue
+                lines.append(cleaned)
+
+            if lines:
+                return '\n'.join(lines)
             return output
         except subprocess.TimeoutExpired:
             return "Agent timeout. Please verify the AgentCore container is running and responsive."
