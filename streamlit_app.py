@@ -94,13 +94,65 @@ def authenticate_user(email: str, password: str) -> dict:
         return None
 
 def invoke_agentcore(query: str) -> str:
-    """Call Bedrock AgentCore API using agentcore CLI or direct API"""
+    """Call Bedrock AgentCore via HTTP API"""
     try:
-        import subprocess
+        import requests
         import json
         
-        # Try subprocess first (works locally)
+        # Get AWS session for signing requests
+        session = get_boto3_session()
+        if not session:
+            return "❌ AWS credentials not configured"
+        
+        # Use AWS SigV4 for signed requests
+        from botocore.auth import SigV4Auth
+        from botocore.awsrequest import AWSRequest
+        
+        # AgentCore runtime endpoint
+        agent_arn = 'test1-HBDXfJ46Xa'
+        endpoint = f'https://bedrock-agentcore.ap-south-1.amazonaws.com/runtime/{agent_arn}/invoke'
+        
+        # Prepare request
+        payload = {
+            'promptText': query,
+            'sessionId': f"streamlit_{st.session_state.user['email'].replace('@', '_').replace('.', '_')}"[:64]
+        }
+        
+        # Create AWS signed request
+        credentials = session.get_credentials()
+        request = AWSRequest(
+            method='POST',
+            url=endpoint,
+            data=json.dumps(payload),
+            headers={'Content-Type': 'application/x-amz-json-1.1'}
+        )
+        
+        SigV4Auth(credentials, 'bedrock-agentcore-runtime', 'ap-south-1').add_auth(request)
+        
+        # Make the request
+        response = requests.post(
+            endpoint,
+            data=request.body,
+            headers=dict(request.headers),
+            timeout=120
+        )
+        
+        if response.status_code == 200:
+            try:
+                result = response.json()
+                answer = result.get('completion', result.get('response', ''))
+                return answer if answer else "No response from agent"
+            except:
+                return response.text if response.text else "No response"
+        else:
+            return f"❌ Error {response.status_code}: {response.text}"
+            
+    except Exception as e:
+        # Fallback: try local CLI
         try:
+            import subprocess
+            import json
+            
             payload_str = json.dumps({"prompt": query})
             result = subprocess.run(
                 ["agentcore", "invoke", payload_str],
@@ -133,38 +185,9 @@ def invoke_agentcore(query: str) -> str:
                                 return line
                     
                     return full_output if full_output else "No response"
-        except FileNotFoundError:
-            pass  # agentcore not available, try API
+        except:
+            pass
         
-        # Use AWS Bedrock Agent API (for Streamlit Cloud)
-        session = get_boto3_session()
-        if not session:
-            return "❌ AWS credentials not configured"
-        
-        client = session.client('bedrock-agent-runtime', region_name='ap-south-1')
-        
-        # Extract valid agent ID and create valid session ID
-        agent_id = 'HBDXfJ46Xa'  # Must be ≤10 alphanumeric chars
-        user_email_clean = st.session_state.user['email'].replace('@', '_').replace('.', '_')
-        session_id = f"streamlit_{user_email_clean}"[:32]  # Max 32 chars, alphanumeric._:-
-        
-        response = client.invoke_agent(
-            agentId=agent_id,
-            agentAliasId='TSTALIASID',
-            sessionId=session_id,
-            inputText=query
-        )
-        
-        answer = ""
-        for event in response.get('output', []):
-            if 'chunk' in event:
-                chunk = event['chunk']
-                if 'bytes' in chunk:
-                    answer += chunk['bytes'].decode('utf-8')
-        
-        return answer if answer else "No response from agent"
-            
-    except Exception as e:
         return f"❌ Error: {str(e)}"
 
 # Page configuration
