@@ -6,11 +6,40 @@ from datetime import datetime
 import requests
 import json
 import uuid
+import os
+
+# Load AWS credentials from Streamlit secrets or environment
+def get_boto3_session():
+    """Create boto3 session with credentials from secrets or environment"""
+    try:
+        # Try to get credentials from Streamlit secrets
+        if 'AWS_ACCESS_KEY_ID' in st.secrets:
+            session = boto3.Session(
+                aws_access_key_id=st.secrets['AWS_ACCESS_KEY_ID'],
+                aws_secret_access_key=st.secrets['AWS_SECRET_ACCESS_KEY'],
+                region_name=st.secrets.get('AWS_DEFAULT_REGION', 'ap-south-1')
+            )
+        else:
+            # Fall back to environment variables or IAM role
+            session = boto3.Session(region_name='ap-south-1')
+        return session
+    except Exception as e:
+        st.error(f"AWS Configuration Error: {str(e)}")
+        return None
 
 # DynamoDB setup
-dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
-users_table = dynamodb.Table('user_login_details')
-queries_table = dynamodb.Table('demo_agent_history')
+try:
+    session = get_boto3_session()
+    if session:
+        dynamodb = session.resource('dynamodb')
+        users_table = dynamodb.Table('user_login_details')
+        queries_table = dynamodb.Table('demo_agent_history')
+    else:
+        st.error("Failed to initialize AWS session")
+        st.stop()
+except Exception as e:
+    st.error(f"DynamoDB Error: {str(e)}")
+    st.stop()
 
 # Bedrock AgentCore endpoint
 AGENTCORE_ENDPOINT = "arn:aws:bedrock-agentcore:ap-south-1:423781074828:runtime/test1-HBDXfJ46Xa"
@@ -65,72 +94,72 @@ def authenticate_user(email: str, password: str) -> dict:
         return None
 
 def invoke_agentcore(query: str) -> str:
-    """Call Bedrock AgentCore API using agentcore CLI"""
+    """Call Bedrock AgentCore API using agentcore CLI or direct API"""
     try:
         import subprocess
         import json
         
-        # Create payload as a string
-        payload_str = json.dumps({"prompt": query})
+        # Try subprocess first (works locally)
+        try:
+            payload_str = json.dumps({"prompt": query})
+            result = subprocess.run(
+                ["agentcore", "invoke", payload_str],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            if result.returncode == 0:
+                output = result.stdout.strip() if result.stdout else ""
+                error_output = result.stderr.strip() if result.stderr else ""
+                full_output = output + "\n" + error_output if output and error_output else (output or error_output)
+                
+                if full_output:
+                    lines = full_output.split('\n')
+                    for i, line in enumerate(lines):
+                        if 'Response:' in line:
+                            response_text = line.split('Response:', 1)[1].strip()
+                            if response_text:
+                                return response_text
+                            for next_line in lines[i+1:]:
+                                next_line = next_line.strip()
+                                if next_line and not next_line.startswith('+'):
+                                    return next_line
+                    
+                    for line in reversed(lines):
+                        line = line.strip()
+                        if line and not line.startswith('+') and not line.startswith('ARN:') and 'bedrock' not in line.lower():
+                            if len(line) > 5:
+                                return line
+                    
+                    return full_output if full_output else "No response"
+        except FileNotFoundError:
+            pass  # agentcore not available, try API
         
-        # Use agentcore CLI to invoke with longer timeout
-        result = subprocess.run(
-            ["agentcore", "invoke", payload_str],
-            capture_output=True,
-            text=True,
-            timeout=120  # 2 minute timeout
+        # Use AWS Bedrock Agent API (for Streamlit Cloud)
+        session = get_boto3_session()
+        if not session:
+            return "❌ AWS credentials not configured"
+        
+        client = session.client('bedrock-agent-runtime', region_name='ap-south-1')
+        response = client.invoke_agent(
+            agentId='test1-HBDXfJ46Xa',
+            agentAliasId='TSTALIASID',
+            sessionId=f"streamlit-{st.session_state.user['email']}",
+            inputText=query
         )
         
-        # Check both stdout and stderr for the response
-        output = result.stdout.strip() if result.stdout else ""
-        error_output = result.stderr.strip() if result.stderr else ""
+        answer = ""
+        for event in response.get('output', []):
+            if 'chunk' in event:
+                chunk = event['chunk']
+                if 'bytes' in chunk:
+                    answer += chunk['bytes'].decode('utf-8')
         
-        # Combine both outputs
-        full_output = output + "\n" + error_output if output and error_output else (output or error_output)
-        
-        if result.returncode == 0 or full_output:
-            if not full_output:
-                return "No response from agent"
+        return answer if answer else "No response from agent"
             
-            lines = full_output.split('\n')
-            
-            # Look for "Response: " or just get the actual answer text
-            for i, line in enumerate(lines):
-                if 'Response:' in line:
-                    # Extract everything after "Response:"
-                    response_text = line.split('Response:', 1)[1].strip()
-                    if response_text:
-                        return response_text
-                    # If nothing after colon, get next non-empty line
-                    for next_line in lines[i+1:]:
-                        next_line = next_line.strip()
-                        if next_line and not next_line.startswith('+') and not next_line.startswith('|'):
-                            return next_line
-            
-            # If no Response: found, look for lines with actual content (not metadata)
-            for line in reversed(lines):
-                line = line.strip()
-                # Skip empty lines and metadata lines
-                if line and not line.startswith('+') and not line.startswith('|') and \
-                   not line.startswith('ARN:') and not line.startswith('Logs:') and \
-                   not line.startswith('Session:') and not line.startswith('Request ID:') and \
-                   'bedrock' not in line.lower() and 'dashboard' not in line.lower() and \
-                   'GenAI' not in line:
-                    if len(line) > 5:  # Avoid very short lines
-                        return line
-            
-            # Last resort: return full output if it looks reasonable
-            if full_output and not full_output.startswith('+'):
-                return full_output
-                
-            return "Unable to extract response"
-        else:
-            return f"Error: Agent returned code {result.returncode}"
-            
-    except subprocess.TimeoutExpired:
-        return "⏱️ Error: Agent call timed out. The agent is taking too long to respond."
     except Exception as e:
-        return f"❌ Error invoking agent: {str(e)}"
+        return f"❌ Error: {str(e)}"
 
 # Page configuration
 st.set_page_config(page_title="Agent Query System", layout="wide", initial_sidebar_state="expanded")
