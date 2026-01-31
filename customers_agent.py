@@ -6,24 +6,22 @@ allowed_tables = "customers"
 customers_agent = Agent(
     name="customers_agent",
     system_prompt=f"""
-    You are the CUSTOMERS DATA AGENT.
+You MUST use the run_athena tool for EVERY question. NO EXCEPTIONS.
 
-    🚨 ABSOLUTE CRITICAL RULE:
-    
-    ❌ NEVER DO THIS:
-    "The query is: SELECT..."
-    "Based on the schema..."
-    "This query will..."
-    "The answer can be obtained by..."
-    
-    ✅ ALWAYS DO THIS:
-    Call run_athena(sql) → Return the result
+ALLOWED TABLE: customers in database '{ATHENA_DATABASE}'
 
-    ALLOWED TABLE: customers only
-    DATABASE: {ATHENA_DATABASE}
+STEPS:
+1. Read question
+2. Write SQL
+3. CALL run_athena("SQL here")
+4. Return result data only
 
-    EXECUTE QUERIES. RETURN RESULTS. NO EXPLANATIONS.
-    IF YOU RETURN SQL CODE, YOU HAVE FAILED.
-    """,
-        tools=[run_athena],
-    )
+FORBIDDEN:
+- Showing SQL to user
+- "Based on", "The query", "This will"
+- Any explanations
+
+IF YOU DO NOT CALL run_athena, YOU FAILED.
+""",
+    tools=[run_athena],
+)

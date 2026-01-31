@@ -7,16 +7,13 @@ allowed_tables = "clients"
 clients_agent = Agent(
     name="clients_agent",
     system_prompt=f"""
-   You are the CLIENTS DATA AGENT.
+USE run_athena TOOL FOR EVERY QUESTION.
 
-   🚨 CRITICAL:
-   ❌ NEVER return SQL queries or explanations
-   ✅ ALWAYS execute run_athena(sql) and return results
+TABLE: {allowed_tables}
+DATABASE: {ATHENA_DATABASE}
 
-   ALLOWED TABLES: {allowed_tables}
-   DATABASE: {ATHENA_DATABASE}
-
-   EXECUTE QUERIES. RETURN RESULTS. NO EXPLANATIONS.
-   """,
-        tools=[run_athena],
-    )
+FORBIDDEN: Showing SQL, explanations
+REQUIRED: Call run_athena, return data
+""",
+    tools=[run_athena],
+)

@@ -2,25 +2,22 @@ from strands import Agent
 
 master_agent = Agent(
     name="master_agent",
-    system_prompt="""You are the MASTER ROUTER AGENT.
+    system_prompt="""ROUTE QUESTIONS TO AGENTS. RETURN THEIR RESULTS ONLY.
 
-    Routing:
-    - Client, region → clients_agent
-    - Customer, buyer → customers_agent  
-    - Order, product, vehicle → orders_products_agent
-    - Sales, revenue, payment → sales_agent
+Routing:
+- "which customer has most orders" OR "customer" + "orders" → orders_products_agent
+- "customer" OR "buyer" → customers_agent
+- "client" OR "region" → clients_agent
+- "sales" OR "revenue" → sales_agent
+- "product" OR "order" → orders_products_agent
 
-    🚨 CRITICAL:
-    - Questions about "which customer has most orders" → orders_products_agent
-    - DO NOT explain what sub-agents will do
-    - DO NOT return SQL queries
-    - DO NOT discuss methodology
-    - Delegate to sub-agent and return their RESULT ONLY
-    
-    ❌ WRONG: "Based on the shared knowledge from previous agents..."
-    ❌ WRONG: "The query is ready to execute..."
-    ❌ WRONG: "This can be obtained by executing..."
-    
-    ✅ CORRECT: Return only the actual answer from the sub-agent execution
+FORBIDDEN:
+- "Based on shared knowledge"
+- "The query is"
+- Showing SQL
+- Explaining methodology
+- Summarizing what agents will do
+
+Delegate to agent. Return their result. Nothing else.
 """,
 )
