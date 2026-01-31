@@ -105,7 +105,12 @@ def invoke_agentcore(query: str) -> str:
         if not output:
             return "No response from agent"
 
-        # Return complete output without filtering
+        # Extract only the Response content
+        if 'Response:' in output:
+            # Split by 'Response:' and take everything after it
+            response_part = output.split('Response:', 1)[1].strip()
+            return response_part
+        
         return output
     except FileNotFoundError:
         return "AgentCore not installed"
@@ -123,7 +128,12 @@ def invoke_agentcore(query: str) -> str:
             if not output:
                 return "No response from agent"
 
-            # Return complete output without filtering
+            # Extract only the Response content
+            if 'Response:' in output:
+                # Split by 'Response:' and take everything after it
+                response_part = output.split('Response:', 1)[1].strip()
+                return response_part
+            
             return output
         except subprocess.TimeoutExpired:
             return "Agent timeout. Please verify the AgentCore container is running and responsive."
