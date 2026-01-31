@@ -105,43 +105,7 @@ def invoke_agentcore(query: str) -> str:
         if not output:
             return "No response from agent"
 
-        # Clean box-drawing borders and extract meaningful lines
-        def clean_line(s: str) -> str:
-            s = s.strip()
-            if not s:
-                return ""
-            # Remove leading/trailing box drawing chars and pipes
-            s = re.sub(r'^[\s\|\u2500-\u257F]+', '', s)
-            s = re.sub(r'[\s\|\u2500-\u257F]+$', '', s)
-            return s.strip()
-
-        lines = []
-        for raw in output.split('\n'):
-            cleaned = clean_line(raw)
-            if not cleaned:
-                continue
-            # Skip known non-content headers/metadata
-            skip_prefixes = (
-                'Invoke information', 'Warning', '⚠️',
-                'Session:', 'Request ID:', 'ARN:', 'Logs:', 'GenAI Dashboard:'
-            )
-            if cleaned.startswith(skip_prefixes):
-                continue
-            lines.append(cleaned)
-
-        # Prefer explicit "Response:" content if present
-        if lines:
-            for i, line in enumerate(lines):
-                if line.lower().startswith('response:'):
-                    content = line.split(':', 1)[1].strip()
-                    if content:
-                        # Return all content from this line onward
-                        return '\n'.join([content] + lines[i + 1:])
-                    # If the content is on the next line, return all remaining lines
-                    if i + 1 < len(lines):
-                        return '\n'.join(lines[i + 1:])
-            # Otherwise, return all meaningful lines joined
-            return '\n'.join(lines)
+        # Return complete output without filtering
         return output
     except FileNotFoundError:
         return "AgentCore not installed"
@@ -159,35 +123,7 @@ def invoke_agentcore(query: str) -> str:
             if not output:
                 return "No response from agent"
 
-            def clean_line_retry(s: str) -> str:
-                s = s.strip()
-                if not s:
-                    return ""
-                s = re.sub(r'^[\s\|\u2500-\u257F]+', '', s)
-                s = re.sub(r'[\s\|\u2500-\u257F]+$', '', s)
-                return s.strip()
-
-            lines = []
-            for raw in output.split('\n'):
-                cleaned = clean_line_retry(raw)
-                if not cleaned:
-                    continue
-                if cleaned.startswith(('Invoke information', 'Warning', '⚠️', 'Session:', 'Request ID:', 'ARN:', 'Logs:', 'GenAI Dashboard:')):
-                    continue
-                lines.append(cleaned)
-
-            if lines:
-                for i, line in enumerate(lines):
-                    if line.lower().startswith('response:'):
-                        content = line.split(':', 1)[1].strip()
-                        if content:
-                            # Return all content from this line onward
-                            return '\n'.join([content] + lines[i + 1:])
-                        if i + 1 < len(lines):
-                            # Return all remaining lines
-                            return '\n'.join(lines[i + 1:])
-                # Return all meaningful lines joined
-                return '\n'.join(lines)  
+            # Return complete output without filtering
             return output
         except subprocess.TimeoutExpired:
             return "Agent timeout. Please verify the AgentCore container is running and responsive."
