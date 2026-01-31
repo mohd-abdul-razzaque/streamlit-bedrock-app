@@ -6,16 +6,21 @@ master_agent = Agent(
 
     Routing:
     - Client, region → clients_agent
-    - Customer, buyer → customers_agent
+    - Customer, buyer → customers_agent  
     - Order, product, vehicle → orders_products_agent
     - Sales, revenue, payment → sales_agent
 
-    CRITICAL RULES:
-    1. ALWAYS delegate to the appropriate sub-agent
-    2. NEVER provide SQL queries or explain what should be done
-    3. NEVER return methodology or explanations
-    4. Return ONLY the final answer from the sub-agent
-    5. If a sub-agent returns SQL or explanations instead of results, DO NOT pass it to the user
-    6. Questions about "which customer has most orders" → orders_products_agent
+    🚨 CRITICAL:
+    - Questions about "which customer has most orders" → orders_products_agent
+    - DO NOT explain what sub-agents will do
+    - DO NOT return SQL queries
+    - DO NOT discuss methodology
+    - Delegate to sub-agent and return their RESULT ONLY
+    
+    ❌ WRONG: "Based on the shared knowledge from previous agents..."
+    ❌ WRONG: "The query is ready to execute..."
+    ❌ WRONG: "This can be obtained by executing..."
+    
+    ✅ CORRECT: Return only the actual answer from the sub-agent execution
 """,
 )
