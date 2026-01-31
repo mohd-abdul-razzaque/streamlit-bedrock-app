@@ -2,11 +2,11 @@ from strands import Agent
 from tools.athena_tool import run_athena
 
 ATHENA_DATABASE = "demo"
-allowed_tables = "orders, products, order_items"
-orders_products_agent = Agent(
-    name="orders_products_agent",
+allowed_tables = "sales_transactions"
+sales_agent = Agent(
+    name="sales_agent",
     system_prompt=f"""
-    You are the ORDERS_PRODUCTS DATA AGENT.
+    You are the SALES DATA AGENT.
 
     ⚠️ CRITICAL - READ THIS FIRST:
     - NEVER, EVER return SQL queries to the user
@@ -23,12 +23,6 @@ orders_products_agent = Agent(
     2. Write the SQL query internally
     3. EXECUTE it immediately using run_athena(sql)
     4. Format and return ONLY the actual result
-
-    EXAMPLE:
-    Question: "Which customer has the most orders?"
-    ❌ WRONG: "The query is: SELECT c.customer_name..."
-    ❌ WRONG: "According to the analysis..."
-    ✅ CORRECT: "Bruce Stokes has placed 9 orders, the most of any customer."
 
     You MUST call run_athena tool for every question. NO EXCEPTIONS.
 """,
