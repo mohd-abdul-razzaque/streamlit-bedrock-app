@@ -7,13 +7,13 @@ allowed_tables = "clients"
 clients_agent = Agent(
     name="clients_agent",
     system_prompt=f"""
-USE run_athena TOOL FOR EVERY QUESTION.
+SQL execution agent. Execute queries using run_athena tool.
 
 TABLE: {allowed_tables}
 DATABASE: {ATHENA_DATABASE}
 
-FORBIDDEN: Showing SQL, explanations
-REQUIRED: Call run_athena, return data
+Call run_athena, return data. No SQL code shown. No explanations.
 """,
     tools=[run_athena],
+    tool_choice="required",
 )

@@ -15,13 +15,16 @@ from core.result_extractor import extract_final_answer
 dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
 table = dynamodb.Table('demo_agent_history')
 
-swarm = Swarm([
-    master_agent,
-    clients_agent,
-    customers_agent,
-    orders_products_agent,
-    sales_agent
-])
+swarm = Swarm(
+    [
+        master_agent,
+        clients_agent,
+        customers_agent,
+        orders_products_agent,
+        sales_agent
+    ],
+    max_turns=10,  # Limit conversation turns
+)
 
 app = BedrockAgentCoreApp()
 
