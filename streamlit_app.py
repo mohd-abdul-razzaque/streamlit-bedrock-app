@@ -90,6 +90,32 @@ def authenticate_user(email: str, password: str) -> dict:
         st.error(f"Error authenticating user: {str(e)}")
         return None
 
+def extract_agentcore_response(output: str) -> str:
+    if not output:
+        return "No response from agent"
+
+    # Try to parse the last JSON object from stdout
+    last_match = None
+    for match in re.finditer(r"\{[\s\S]*\}", output):
+        last_match = match
+
+    if last_match:
+        candidate = last_match.group(0).strip()
+        try:
+            payload = json.loads(candidate)
+            if isinstance(payload, dict) and "final_answer" in payload:
+                return str(payload["final_answer"])
+        except json.JSONDecodeError:
+            pass
+
+    # Fallback: return last meaningful line
+    lines = [
+        line.strip()
+        for line in output.splitlines()
+        if line.strip() and not line.strip().startswith("Invocation completed successfully")
+    ]
+    return lines[-1] if lines else output
+
 def invoke_agentcore(query: str) -> str:
     try:
         # Primary attempt
@@ -103,13 +129,7 @@ def invoke_agentcore(query: str) -> str:
 
         # Use ONLY stdout (avoid mixing logs from stderr)
         output = result.stdout.strip()
-
-        if not output:
-            return "No response from agent"
-
-        # Always return the last non-empty line (final answer)
-        lines = [line.strip() for line in output.splitlines() if line.strip()]
-        return lines[-1] if lines else output
+        return extract_agentcore_response(output)
 
     except FileNotFoundError:
         return "AgentCore not installed"
@@ -126,12 +146,7 @@ def invoke_agentcore(query: str) -> str:
             )
 
             output = retry.stdout.strip()
-
-            if not output:
-                return "No response from agent"
-
-            lines = [line.strip() for line in output.splitlines() if line.strip()]
-            return lines[-1] if lines else output
+            return extract_agentcore_response(output)
 
         except subprocess.TimeoutExpired:
             return "Agent timeout. Please verify the AgentCore container is running and responsive."
