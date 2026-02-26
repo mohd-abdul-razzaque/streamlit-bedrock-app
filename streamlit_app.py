@@ -94,19 +94,19 @@ def extract_agentcore_response(output: str) -> str:
     if not output:
         return "No response from agent"
 
-    # Try to parse the last JSON object from stdout
-    last_match = None
-    for match in re.finditer(r"\{[\s\S]*\}", output):
-        last_match = match
-
-    if last_match:
-        candidate = last_match.group(0).strip()
+    # Try to parse the last valid JSON object from stdout
+    last_valid = None
+    for match in re.finditer(r"\{[\s\S]*?\}", output):
+        candidate = match.group(0).strip()
         try:
             payload = json.loads(candidate)
-            if isinstance(payload, dict) and "final_answer" in payload:
-                return str(payload["final_answer"])
+            if isinstance(payload, dict):
+                last_valid = payload
         except json.JSONDecodeError:
-            pass
+            continue
+
+    if isinstance(last_valid, dict) and "final_answer" in last_valid:
+        return str(last_valid["final_answer"])
 
     # Fallback: return last meaningful line
     lines = [
