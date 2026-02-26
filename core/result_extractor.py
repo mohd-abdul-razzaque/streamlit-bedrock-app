@@ -1,14 +1,19 @@
-
 def extract_final_answer(swarm_result):
     """
-    Extract the final user-facing answer from a Strands SwarmResult.
+    Robust extraction of final answer from Strands SwarmResult.
+    Always returns a string.
     """
+
+    if not swarm_result:
+        return "No result returned from swarm."
+
+    # Case 1: No results attribute
     if not hasattr(swarm_result, "results"):
-        return None
+        return str(swarm_result)
 
     answers = []
 
-    for node_result in swarm_result.results.values():
+    for node_name, node_result in swarm_result.results.items():
         result = getattr(node_result, "result", None)
         if not result:
             continue
@@ -17,8 +22,17 @@ def extract_final_answer(swarm_result):
         if not message:
             continue
 
-        for item in message.get("content", []):
-            if isinstance(item, dict) and "text" in item:
-                answers.append(item["text"])
+        content = message.get("content", [])
 
-    return answers[-1] if answers else None
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                text = item["text"].strip()
+                if text:
+                    answers.append(text)
+
+    # Return last meaningful answer
+    if answers:
+        return answers[-1]
+
+    # Fallback for debugging
+    return "Swarm completed but no final answer was extracted."
