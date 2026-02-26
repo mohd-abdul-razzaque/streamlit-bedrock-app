@@ -92,30 +92,30 @@ def authenticate_user(email: str, password: str) -> dict:
 
 def invoke_agentcore(query: str) -> str:
     try:
-        # Primary attempt with extended timeout
+        # Primary attempt
         result = subprocess.run(
             ["agentcore", "invoke", json.dumps({"prompt": query})],
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=600,
             cwd=os.path.dirname(__file__)
         )
-        output = (result.stdout + result.stderr).strip()
+
+        # Use ONLY stdout (avoid mixing logs from stderr)
+        output = result.stdout.strip()
 
         if not output:
             return "No response from agent"
 
-        # Extract only the Response content
-        if 'Response:' in output:
-            # Split by 'Response:' and take everything after it
-            response_part = output.split('Response:', 1)[1].strip()
-            return response_part
-        
-        return output
+        # Always return the last non-empty line (final answer)
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        return lines[-1] if lines else output
+
     except FileNotFoundError:
         return "AgentCore not installed"
+
     except subprocess.TimeoutExpired:
-        # Single retry with a longer timeout
+        # Retry once
         try:
             retry = subprocess.run(
                 ["agentcore", "invoke", json.dumps({"prompt": query})],
@@ -124,21 +124,20 @@ def invoke_agentcore(query: str) -> str:
                 timeout=600,
                 cwd=os.path.dirname(__file__)
             )
-            output = (retry.stdout + retry.stderr).strip()
+
+            output = retry.stdout.strip()
+
             if not output:
                 return "No response from agent"
 
-            # Extract only the Response content
-            if 'Response:' in output:
-                # Split by 'Response:' and take everything after it
-                response_part = output.split('Response:', 1)[1].strip()
-                return response_part
-            
-            return output
+            lines = [line.strip() for line in output.splitlines() if line.strip()]
+            return lines[-1] if lines else output
+
         except subprocess.TimeoutExpired:
             return "Agent timeout. Please verify the AgentCore container is running and responsive."
         except Exception as e:
             return f"Error after retry: {str(e)}"
+
     except Exception as e:
         return f"Error: {str(e)}"
 
