@@ -45,36 +45,39 @@ def invoke(payload: dict):
 
     start_time = time.time()
 
-    # 🔥 CRITICAL FIX: Use blocking execution
     try:
-        result = swarm.run(query)   # <-- IMPORTANT CHANGE
+        result = swarm.run(query)
+
+        print("\n========== RAW SWARM RESULT ==========")
+        print(result)
+        print("TYPE:", type(result))
+        print("DIR:", dir(result))
+
+        messages = getattr(result, "messages", None)
+        print("MESSAGES:", messages)
+        print("======================================\n")
+
     except AttributeError:
-        # Fallback for older strands versions
         result = swarm.invoke(query)
+
+        print("\n========== RAW SWARM RESULT (invoke fallback) ==========")
+        print(result)
+        print("TYPE:", type(result))
+        print("DIR:", dir(result))
+
+        messages = getattr(result, "messages", None)
+        print("MESSAGES:", messages)
+        print("========================================================\n")
 
     execution_time = time.time() - start_time
     print(f"Swarm execution time: {execution_time:.2f} seconds")
 
-    final_answer = extract_final_answer(result)
-
-    if not final_answer:
-        final_answer = "No final answer was generated."
-
-    # Store question and answer in DynamoDB
-    try:
-        table.put_item(
-            Item={
-                'query_id': str(uuid.uuid4()),
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'question': query,
-                'answer': str(final_answer)
-            }
-        )
-    except Exception as e:
-        print(f"Error storing to DynamoDB: {str(e)}")
+    # 🔥 TEMPORARY: bypass extractor to inspect raw result
+    final_answer = str(result)
 
     return {
-    "final_answer": final_answer}
+        "final_answer": final_answer
+    }
 
 
 if __name__ == "__main__":
