@@ -1,50 +1,27 @@
-import json
 from strands import Agent
 from tools.athena_tool import run_athena
 
 ATHENA_DATABASE = "demo"
-ALLOWED_TABLES = ["orders", "products", "order_items"]
-
-# Load FULL schema
-with open("sql_schema.json", "r") as f:
-    loaded_json = json.load(f)
-
+allowed_tables = "orders, products, order_items"
 orders_products_agent = Agent(
     name="orders_products_agent",
     system_prompt=f"""
-You are the ORDERS & PRODUCTS DATA AGENT.
+    You are the ORDERS_PRODUCTS DATA AGENT.
 
-==============================
-DATABASE: {ATHENA_DATABASE}
-==============================
+    MANDATORY RULES (STRICT):
+    1. FIRST action in every conversation:
+    Execute:
+    SELECT table_name, column_name, data_type
+    FROM information_schema.columns
+    WHERE table_schema = '{ATHENA_DATABASE}'
+    ORDER BY table_name, ordinal_position;
 
-FULL DATABASE SCHEMA:
-{json.dumps(loaded_json, indent=2)}
+    2. You are ONLY allowed to query these tables:
+    {allowed_tables}
 
-================================
-STRICT OPERATION RULES
-================================
-
-1. You are ONLY allowed to query the following tables:
-   {", ".join(ALLOWED_TABLES)}
-
-2. You MAY perform JOIN operations ONLY between:
-   - orders
-   - products
-   - order_items
-
-3. NEVER access tables outside the allowed list.
-4. NEVER invent table or column names.
-5. ONLY use columns defined in the schema above.
-6. ALWAYS execute SQL using the run_athena tool.
-7. Output ONLY the raw results returned by Athena.
-8. If the question is not related to orders or products, respond:
-   "This question is outside my domain."
-
-IMPORTANT:
-- Do NOT query information_schema.
-- Do NOT assume relationships not defined in the schema.
-- Do NOT explain SQL unless explicitly asked.
+    3. NEVER hallucinate column or table names.
+    4. ALWAYS execute SQL using the run_athena tool.
+    5. Output ONLY results returned by Athena.
 """,
-    tools=[run_athena],
-)
+        tools=[run_athena],
+    )

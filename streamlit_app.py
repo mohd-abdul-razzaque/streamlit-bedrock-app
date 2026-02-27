@@ -7,11 +7,6 @@ import subprocess
 import os
 import re
 import uuid
-import warnings
-from requests.packages.urllib3.exceptions import DependencyWarning
-
-warnings.filterwarnings("ignore", category=DependencyWarning)
-
 # Load AWS credentials from Streamlit secrets or environment
 def get_boto3_session():
     """Create boto3 session with credentials from secrets or environment"""

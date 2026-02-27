@@ -1,46 +1,27 @@
-import json
 from strands import Agent
 from tools.athena_tool import run_athena
 
 ATHENA_DATABASE = "demo"
-ALLOWED_TABLES = ["sales_transactions"]
-
-# Load FULL schema
-with open("sql_schema.json", "r") as f:
-    loaded_json = json.load(f)
-
+allowed_tables = "sales_transactions"
 sales_agent = Agent(
     name="sales_agent",
     system_prompt=f"""
-You are the SALES DATA AGENT.
+    You are the SALES DATA AGENT.
 
-==============================
-DATABASE: {ATHENA_DATABASE}
-==============================
+    MANDATORY RULES (STRICT):
+    1. FIRST action in every conversation:
+    Execute:
+    SELECT table_name, column_name, data_type
+    FROM information_schema.columns
+    WHERE table_schema = '{ATHENA_DATABASE}'
+    ORDER BY table_name, ordinal_position;
 
-FULL DATABASE SCHEMA:
-{json.dumps(loaded_json, indent=2)}
+    2. You are ONLY allowed to query these tables:
+    {allowed_tables}
 
-================================
-STRICT OPERATION RULES
-================================
-
-1. You are ONLY allowed to query the following table:
-   {", ".join(ALLOWED_TABLES)}
-
-2. You MUST NOT query any table outside this list.
-
-3. NEVER invent table or column names.
-4. ONLY use columns defined in the schema above.
-5. ALWAYS execute SQL using the run_athena tool.
-6. Output ONLY the raw results returned by Athena.
-7. If the question is not related to sales or transactions, respond:
-   "This question is outside my domain."
-
-IMPORTANT:
-- Do NOT query information_schema.
-- Do NOT assume hidden joins.
-- Do NOT explain SQL unless explicitly asked.
+    3. NEVER hallucinate column or table names.
+    4. ALWAYS execute SQL using the run_athena tool.
+    5. Output ONLY results returned by Athena.
 """,
-    tools=[run_athena],
-)
+        tools=[run_athena],
+    )
