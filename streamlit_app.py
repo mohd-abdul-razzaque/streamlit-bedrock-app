@@ -97,7 +97,7 @@ def invoke_agentcore(query: str) -> str:
             ["agentcore", "invoke", json.dumps({"prompt": query})],
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=600,
             cwd=os.path.dirname(__file__)
         )
         output = (result.stdout + result.stderr).strip()
