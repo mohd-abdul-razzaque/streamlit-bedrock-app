@@ -94,24 +94,28 @@ def extract_agentcore_response(output: str) -> str:
     if not output:
         return "No response from agent."
 
-    lines = output.splitlines()
+    try:
+        # Try parsing entire stdout first
+        parsed = json.loads(output)
+        if isinstance(parsed, dict) and "final_answer" in parsed:
+            return str(parsed["final_answer"]).strip()
+    except:
+        pass
 
-    last_valid = None
+    # Fallback: try to extract JSON substring
+    import re
 
-    for line in lines:
-        line = line.strip()
-        if line.startswith("{") and line.endswith("}"):
-            try:
-                candidate = json.loads(line)
-                if isinstance(candidate, dict):
-                    last_valid = candidate
-            except:
-                continue
+    json_matches = re.findall(r'\{.*?\}', output, re.DOTALL)
 
-    if last_valid and "final_answer" in last_valid:
-        return str(last_valid["final_answer"]).strip()
+    for match in reversed(json_matches):  # take last JSON block
+        try:
+            candidate = json.loads(match)
+            if isinstance(candidate, dict) and "final_answer" in candidate:
+                return str(candidate["final_answer"]).strip()
+        except:
+            continue
 
-    return "Master agent response not found."
+    return "No valid master agent response found."
 
 def invoke_agentcore(query: str) -> str:
     try:
