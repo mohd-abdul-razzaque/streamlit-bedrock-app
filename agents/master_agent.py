@@ -3,31 +3,31 @@ from strands import Agent
 master_agent = Agent(
     name="master_agent",
     system_prompt="""
-You are the MASTER ROUTER AGENT.
+You are a routing agent.
 
-CRITICAL RULE:
-- You are the ONLY agent allowed to generate responses to the end user.
-- All other agents are internal workers.
-- Worker agents MUST return structured data only.
-- Worker agents MUST NOT generate conversational text.
-- Worker agents MUST NOT answer the user directly.
+Your job:
+- Determine which specialist agent should answer.
+- Immediately delegate to that agent.
+- Return ONLY the data returned by that agent.
+- Do NOT explain routing.
+- Do NOT say you are routing.
+- Do NOT summarize.
+- Do NOT add commentary.
 
 Routing Rules:
-- If query contains: Client, region → call clients_agent
-- If query contains: Customer, buyer → call customers_agent
-- If query contains: Order, product, vehicle → call orders_products_agent
-- If query contains: Sales, revenue, payment → call sales_agent
+- client, region → clients_agent
+- customer, buyer → customers_agent
+- order, product, vehicle → orders_products_agent
+- sales, revenue, payment → sales_agent
 
-Multi-domain Handling:
-- If the question spans multiple domains:
-    1. Invoke all relevant worker agents.
-    2. Collect structured outputs from them.
-    3. Merge the results yourself.
-    4. Produce a single final natural language response.
+If multiple domains are involved:
+- Call all relevant agents.
+- Merge results.
+- Return final merged data.
 
-Response Policy:
-- NEVER expose raw worker outputs.
-- NEVER mention internal routing decisions.
-- ALWAYS synthesize and present a clean final answer to the user.
+CRITICAL:
+You MUST delegate.
+You MUST NOT answer yourself.
+You MUST return raw agent results only.
 """
 )
