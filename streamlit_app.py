@@ -119,7 +119,6 @@ def extract_agentcore_response(output: str) -> str:
 
 def invoke_agentcore(query: str) -> str:
     try:
-        # Primary attempt
         result = subprocess.run(
             ["agentcore", "invoke", json.dumps({"prompt": query})],
             capture_output=True,
@@ -128,34 +127,21 @@ def invoke_agentcore(query: str) -> str:
             cwd=os.path.dirname(__file__)
         )
 
-        # Use ONLY stdout (avoid mixing logs from stderr)
-        output = result.stdout.strip()
-        return extract_agentcore_response(output)
+        print("\n========== RAW STDOUT ==========")
+        print(result.stdout)
+        print("========== RAW STDERR ==========")
+        print(result.stderr)
+        print("================================\n")
 
-    except FileNotFoundError:
-        return "AgentCore not installed"
-
-    except subprocess.TimeoutExpired:
-        # Retry once
-        try:
-            retry = subprocess.run(
-                ["agentcore", "invoke", json.dumps({"prompt": query})],
-                capture_output=True,
-                text=True,
-                timeout=600,
-                cwd=os.path.dirname(__file__)
-            )
-
-            output = retry.stdout.strip()
-            return extract_agentcore_response(output)
-
-        except subprocess.TimeoutExpired:
-            return "Agent timeout. Please verify the AgentCore container is running and responsive."
-        except Exception as e:
-            return f"Error after retry: {str(e)}"
+        # Also show inside Streamlit UI
+        st.subheader("🔎 DEBUG: Raw AgentCore Output")
+        st.code(result.stdout if result.stdout else "No stdout returned")
+        
+        return result.stdout  # ← return raw output directly (no parsing)
 
     except Exception as e:
         return f"Error: {str(e)}"
+        
 
 # Page configuration
 st.set_page_config(page_title="Agent Query System", layout="wide", initial_sidebar_state="expanded")
