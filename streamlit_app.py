@@ -117,7 +117,7 @@ def extract_agentcore_response(output: str) -> str:
 
     return "No valid master agent response found."
 
-def invoke_agentcore(query: str) -> str:
+def invoke_agentcore(query: str):
     try:
         result = subprocess.run(
             ["agentcore", "invoke", json.dumps({"prompt": query})],
@@ -127,21 +127,49 @@ def invoke_agentcore(query: str) -> str:
             cwd=os.path.dirname(__file__)
         )
 
-        print("\n========== RAW STDOUT ==========")
-        print(result.stdout)
-        print("========== RAW STDERR ==========")
-        print(result.stderr)
-        print("================================\n")
+        raw_output = result.stdout
 
-        # Also show inside Streamlit UI
-        st.subheader("🔎 DEBUG: Raw AgentCore Output")
-        st.code(result.stdout if result.stdout else "No stdout returned")
-        
-        return result.stdout  # ← return raw output directly (no parsing)
+        st.subheader("📦 Raw AgentCore CLI Output")
+        st.code(raw_output if raw_output else "No stdout returned")
+
+        if not raw_output:
+            return None, None
+
+        # Parse CLI JSON
+        try:
+            cli_json = json.loads(raw_output)
+        except Exception as e:
+            st.error(f"Failed to parse CLI JSON: {str(e)}")
+            return None, None
+
+        # Extract response field
+        response_array = cli_json.get("response", [])
+        if not response_array:
+            st.warning("No response field returned from AgentCore.")
+            return None, None
+
+        response_body = response_array[0]
+
+        # Remove b'...' wrapper if present
+        if response_body.startswith("b'") or response_body.startswith('b"'):
+            response_body = response_body[2:-1]
+
+        # Now parse the actual JSON returned by your invoke()
+        try:
+            parsed = json.loads(response_body)
+        except Exception as e:
+            st.error(f"Failed to parse inner response JSON: {str(e)}")
+            st.code(response_body)
+            return None, None
+
+        final_answer = parsed.get("final_answer", "No answer")
+        debug_logs = parsed.get("debug_logs", [])
+
+        return final_answer, debug_logs
 
     except Exception as e:
-        return f"Error: {str(e)}"
-        
+        st.error(f"Invocation Error: {str(e)}")
+        return None, None
 
 # Page configuration
 st.set_page_config(page_title="Agent Query System", layout="wide", initial_sidebar_state="expanded")
@@ -163,15 +191,17 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'user' not in st.session_state:
     st.session_state.user = None
-
 # Sidebar for authentication
 with st.sidebar:
     st.title("Authentication")
+
     if not st.session_state.authenticated:
-        auth_choice = st.radio("Choose action:", ["Login", "Sign Up"]) 
+        auth_choice = st.radio("Choose action:", ["Login", "Sign Up"])
+
         if auth_choice == "Login":
             login_email = st.text_input("Email", key="login_email")
             login_password = st.text_input("Password", type="password", key="login_password")
+
             if st.button("Login", key="login_btn"):
                 user = authenticate_user(login_email, login_password)
                 if user:
@@ -181,11 +211,13 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("Invalid email or password")
+
         else:
             signup_name = st.text_input("Full Name", key="signup_name")
             signup_email = st.text_input("Email", key="signup_email")
             signup_password = st.text_input("Password", type="password", key="signup_password")
             signup_confirm = st.text_input("Confirm Password", type="password", key="signup_confirm")
+
             if st.button("Create Account", key="signup_btn"):
                 if not signup_name or not signup_email or not signup_password:
                     st.error("All fields are required")
@@ -198,66 +230,95 @@ with st.sidebar:
                     st.rerun()
                 else:
                     st.error("Error creating account")
+
     else:
         st.subheader(st.session_state.user['name'])
         st.text(st.session_state.user['email'])
+
         if st.button("Logout", key="logout_btn"):
             st.session_state.authenticated = False
             st.session_state.user = None
             st.rerun()
 
-# Main content
+
+# ================= MAIN CONTENT =================
+
 if st.session_state.authenticated:
+
     st.title("🤖 Agent Query System")
+
     if st.button("🚪 Logout", key="logout_btn_top"):
         st.session_state.authenticated = False
         st.session_state.user = None
         st.rerun()
-    
+
     st.divider()
-    
-    # Welcome message
+
     st.info(f"Welcome, {st.session_state.user['name']}! Ask me anything about your data.")
-    
+
     st.subheader("💬 Ask a Question")
-    user_query = st.text_area("Enter your question:", height=120, placeholder="e.g., How many customers are there?", disabled=st.session_state.is_processing)
-    
-    send_btn = st.button("🚀 Send Query", key="send_query_btn", disabled=st.session_state.is_processing)
-    
-    if send_btn:
-        if user_query.strip():
-            st.session_state.is_processing = True
-    
-    if st.session_state.is_processing:
-        if user_query.strip():
-            with st.spinner("🔄 Processing your query..."):
-                response = invoke_agentcore(user_query)
-                st.session_state.is_processing = False
-                
-                st.success("✅ Response received!")
-                st.write(response)
-                
-                # Store in history
-                try:
-                    queries_table.put_item(
-                        Item={
-                            'query_id': f"{st.session_state.user['email']}-{datetime.utcnow().timestamp()}",
-                            'user_email': st.session_state.user['email'],
-                            'question': user_query,
-                            'answer': response,
-                            'timestamp': datetime.utcnow().isoformat()
-                        }
-                    )
-                except Exception as e:
-                    st.warning(f"⚠️ Could not save to history: {str(e)}")
+
+    user_query = st.text_area(
+        "Enter your question:",
+        height=120,
+        placeholder="e.g., How many customers are there?",
+        disabled=st.session_state.is_processing
+    )
+
+    send_btn = st.button(
+        "🚀 Send Query",
+        key="send_query_btn",
+        disabled=st.session_state.is_processing
+    )
+
+    if send_btn and user_query.strip():
+        st.session_state.is_processing = True
+
+        with st.spinner("🔄 Processing your query..."):
+
+            final_answer, debug_logs = invoke_agentcore(user_query)
+
+        st.session_state.is_processing = False
+
+        st.success("✅ Response received!")
+
+        # ---------- Final Answer ----------
+        if final_answer:
+            st.subheader("🧠 Final Answer")
+            st.write(final_answer)
         else:
-            st.warning("⚠️ Please enter a question before sending")
-            st.session_state.is_processing = False
+            st.error("No final answer returned.")
+
+        # ---------- Debug Logs ----------
+        if debug_logs:
+            with st.expander("🔎 Debug Logs (Backend Execution)"):
+                for log in debug_logs:
+                    st.text(log)
+
+        # ---------- Store Only Clean Answer ----------
+        try:
+            queries_table.put_item(
+                Item={
+                    'query_id': f"{st.session_state.user['email']}-{datetime.utcnow().timestamp()}",
+                    'user_email': st.session_state.user['email'],
+                    'question': user_query,
+                    'answer': final_answer if final_answer else "No answer",
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            )
+        except Exception as e:
+            st.warning(f"⚠️ Could not save to history: {str(e)}")
+
+    elif send_btn and not user_query.strip():
+        st.warning("⚠️ Please enter a question before sending")
+
+
+# ================= LOGIN SCREEN =================
 
 else:
-    # Login/Signup page styling
+
     col_left, col_center, col_right = st.columns([1, 2, 1])
-    
+
     with col_center:
         st.markdown("""
         <div style="text-align: center; margin-bottom: 30px;">
@@ -271,9 +332,9 @@ else:
             </p>
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.divider()
-        
+
         st.markdown("""
         <div style="text-align: center; margin-bottom: 30px;">
             <p style="font-size: 16px; color: #333; line-height: 1.6;">
