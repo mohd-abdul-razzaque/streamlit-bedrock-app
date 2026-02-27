@@ -92,29 +92,26 @@ def authenticate_user(email: str, password: str) -> dict:
 
 def extract_agentcore_response(output: str) -> str:
     if not output:
-        return "No response from agent"
+        return "No response from agent."
 
-    # Try to parse the last valid JSON object from stdout
+    lines = output.splitlines()
+
     last_valid = None
-    for match in re.finditer(r"\{[\s\S]*?\}", output):
-        candidate = match.group(0).strip()
-        try:
-            payload = json.loads(candidate)
-            if isinstance(payload, dict):
-                last_valid = payload
-        except json.JSONDecodeError:
-            continue
 
-    if isinstance(last_valid, dict) and "final_answer" in last_valid:
-        return str(last_valid["final_answer"])
+    for line in lines:
+        line = line.strip()
+        if line.startswith("{") and line.endswith("}"):
+            try:
+                candidate = json.loads(line)
+                if isinstance(candidate, dict):
+                    last_valid = candidate
+            except:
+                continue
 
-    # Fallback: return last meaningful line
-    lines = [
-        line.strip()
-        for line in output.splitlines()
-        if line.strip() and not line.strip().startswith("Invocation completed successfully")
-    ]
-    return lines[-1] if lines else output
+    if last_valid and "final_answer" in last_valid:
+        return str(last_valid["final_answer"]).strip()
+
+    return "Master agent response not found."
 
 def invoke_agentcore(query: str) -> str:
     try:
