@@ -73,10 +73,8 @@ def invoke(payload: dict):
     except Exception as e:
         print(f"Error storing to DynamoDB: {str(e)}")
 
-    # ✅ Always return structured JSON
     return {
-        "final_answer": final_answer
-    }
+    "final_answer": final_answer}
 
 
 if __name__ == "__main__":
