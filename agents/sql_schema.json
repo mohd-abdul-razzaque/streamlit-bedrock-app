@@ -1,0 +1,118 @@
+{
+  "orders": {
+    "primary_key": "order_id",
+    "columns": [
+      { "name": "order_id", "data_type": "integer" },
+      { "name": "customer_id", "data_type": "integer" },
+      { "name": "order_date", "data_type": "varchar" },
+      { "name": "order_status", "data_type": "varchar" },
+      { "name": "total_order_value", "data_type": "decimal(14,2)" }
+    ],
+    "foreign_keys": [
+      {
+        "column": "customer_id",
+        "references": {
+          "table": "customers",
+          "column": "customer_id"
+        }
+      }
+    ]
+  },
+
+  "clients": {
+    "primary_key": "client_id",
+    "columns": [
+      { "name": "client_id", "data_type": "integer" },
+      { "name": "client_name", "data_type": "varchar" },
+      { "name": "industry", "data_type": "varchar" },
+      { "name": "region", "data_type": "varchar" },
+      { "name": "country", "data_type": "varchar" },
+      { "name": "onboarded_date", "data_type": "varchar" }
+    ],
+    "foreign_keys": []
+  },
+
+  "customers": {
+    "primary_key": "customer_id",
+    "columns": [
+      { "name": "customer_id", "data_type": "integer" },
+      { "name": "customer_name", "data_type": "varchar" },
+      { "name": "customer_type", "data_type": "varchar" },
+      { "name": "country", "data_type": "varchar" },
+      { "name": "created_at", "data_type": "varchar" }
+    ],
+    "foreign_keys": []
+  },
+
+  "order_items": {
+    "primary_key": "order_item_id",
+    "columns": [
+      { "name": "order_item_id", "data_type": "integer" },
+      { "name": "order_id", "data_type": "integer" },
+      { "name": "product_id", "data_type": "integer" },
+      { "name": "quantity", "data_type": "integer" },
+      { "name": "unit_price", "data_type": "decimal(12,2)" },
+      { "name": "line_total", "data_type": "decimal(14,2)" }
+    ],
+    "foreign_keys": [
+      {
+        "column": "order_id",
+        "references": {
+          "table": "orders",
+          "column": "order_id"
+        }
+      },
+      {
+        "column": "product_id",
+        "references": {
+          "table": "products",
+          "column": "product_id"
+        }
+      }
+    ]
+  },
+
+  "sales_transactions": {
+    "primary_key": "transaction_id",
+    "columns": [
+      { "name": "transaction_id", "data_type": "integer" },
+      { "name": "order_id", "data_type": "integer" },
+      { "name": "payment_mode", "data_type": "varchar" },
+      { "name": "amount_paid", "data_type": "decimal(14,2)" },
+      { "name": "transaction_date", "data_type": "varchar" }
+    ],
+    "foreign_keys": [
+      {
+        "column": "order_id",
+        "references": {
+          "table": "orders",
+          "column": "order_id"
+        }
+      }
+    ]
+  },
+
+  "products": {
+    "primary_key": "product_id",
+    "columns": [
+      { "name": "product_id", "data_type": "integer" },
+      { "name": "client_id", "data_type": "integer" },
+      { "name": "product_name", "data_type": "varchar" },
+      { "name": "product_type", "data_type": "varchar" },
+      { "name": "fuel_type", "data_type": "varchar" },
+      { "name": "unit_price", "data_type": "decimal(12,2)" },
+      { "name": "manufacturing_cost", "data_type": "decimal(12,2)" },
+      { "name": "launch_year", "data_type": "integer" },
+      { "name": "is_active", "data_type": "boolean" }
+    ],
+    "foreign_keys": [
+      {
+        "column": "client_id",
+        "references": {
+          "table": "clients",
+          "column": "client_id"
+        }
+      }
+    ]
+  }
+}
