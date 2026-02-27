@@ -38,45 +38,34 @@ swarm = Swarm(
 
 app = BedrockAgentCoreApp()
 
-
 @app.entrypoint
 def invoke(payload: dict):
     query = payload.get("prompt", "")
 
-    start_time = time.time()
+    print("\n===== INVOKE CALLED =====")
+    print("Query:", query)
 
     try:
         result = swarm.run(query)
+    except Exception as e:
+        print("Swarm error:", str(e))
+        return {
+            "final_answer": f"Swarm error: {str(e)}"
+        }
 
-        print("\n========== RAW SWARM RESULT ==========")
-        print(result)
-        print("TYPE:", type(result))
-        print("DIR:", dir(result))
+    print("\n===== RAW SWARM RESULT =====")
+    print(result)
+    print("TYPE:", type(result))
+    print("============================\n")
 
-        messages = getattr(result, "messages", None)
-        print("MESSAGES:", messages)
-        print("======================================\n")
-
-    except AttributeError:
-        result = swarm.invoke(query)
-
-        print("\n========== RAW SWARM RESULT (invoke fallback) ==========")
-        print(result)
-        print("TYPE:", type(result))
-        print("DIR:", dir(result))
-
-        messages = getattr(result, "messages", None)
-        print("MESSAGES:", messages)
-        print("========================================================\n")
-
-    execution_time = time.time() - start_time
-    print(f"Swarm execution time: {execution_time:.2f} seconds")
-
-    # 🔥 TEMPORARY: bypass extractor to inspect raw result
-    final_answer = str(result)
+    # FORCE non-null return no matter what
+    if result is None:
+        return {
+            "final_answer": "Swarm returned None."
+        }
 
     return {
-        "final_answer": final_answer
+        "final_answer": str(result)
     }
 
 
