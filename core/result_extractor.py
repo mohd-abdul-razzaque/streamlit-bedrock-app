@@ -1,21 +1,24 @@
+
 def extract_final_answer(swarm_result):
     """
-    Production-safe extractor for Strands SwarmResult.
-    Always returns the latest assistant text available.
-    Never returns None.
+    Extract the final user-facing answer from a Strands SwarmResult.
     """
+    if not hasattr(swarm_result, "results"):
+        return None
 
-    if not swarm_result:
-        return "No result returned from swarm."
+    answers = []
 
-    # Return only explicit final answers
-    if isinstance(swarm_result, dict):
-        final_answer = swarm_result.get("final_answer")
-        if isinstance(final_answer, str) and final_answer.strip():
-            return final_answer.strip()
+    for node_result in swarm_result.results.values():
+        result = getattr(node_result, "result", None)
+        if not result:
+            continue
 
-    final = getattr(swarm_result, "final", None)
-    if isinstance(final, str) and final.strip():
-        return final.strip()
+        message = getattr(result, "message", None)
+        if not message:
+            continue
 
-    return "Final answer not available yet."
+        for item in message.get("content", []):
+            if isinstance(item, dict) and "text" in item:
+                answers.append(item["text"])
+
+    return answers[-1] if answers else None

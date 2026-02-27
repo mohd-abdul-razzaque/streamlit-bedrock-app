@@ -1,46 +1,20 @@
 import streamlit as st
 import boto3
 import hashlib
+import hmac
 from datetime import datetime
+import requests
 import json
-import subprocess
-import os
-import re
 import uuid
-# Load AWS credentials from Streamlit secrets or environment
-def get_boto3_session():
-    """Create boto3 session with credentials from secrets or environment"""
-    try:
-        # Try to get credentials from Streamlit secrets
-        if 'AWS_ACCESS_KEY_ID' in st.secrets:
-            session = boto3.Session(
-                aws_access_key_id=st.secrets['AWS_ACCESS_KEY_ID'],
-                aws_secret_access_key=st.secrets['AWS_SECRET_ACCESS_KEY'],
-                region_name=st.secrets.get('AWS_DEFAULT_REGION', 'ap-south-1')
-            )
-        else:
-            # Fall back to environment variables or IAM role
-            session = boto3.Session(region_name='ap-south-1')
-        return session
-    except Exception as e:
-        st.error(f"AWS Configuration Error: {str(e)}")
-        return None
 
 # DynamoDB setup
-try:
-    session = get_boto3_session()
-    if session:
-        dynamodb = session.resource('dynamodb')
-        users_table = dynamodb.Table('user_login_details')
-        queries_table = dynamodb.Table('demo_agent_history')
-    else:
-        st.error("Failed to initialize AWS session")
-        st.stop()
-except Exception as e:
-    st.error(f"DynamoDB Error: {str(e)}")
-    st.stop()
+dynamodb = boto3.resource('dynamodb', region_name='ap-south-1')
+users_table = dynamodb.Table('user_login_details')
+queries_table = dynamodb.Table('demo_agent_history')
 
-# AgentCore configuration is handled by local CLI and .bedrock_agentcore.yaml
+# Bedrock AgentCore endpoint
+AGENTCORE_ENDPOINT = "arn:aws:bedrock-agentcore:ap-south-1:423781074828:runtime/test1-HBDXfJ46Xa"
+AGENTCORE_URL = "https://bedrock-agentcore.ap-south-1.amazonaws.com/runtime/invoke"
 
 def hash_password(password: str) -> str:
     """Hash password using SHA256"""
@@ -90,86 +64,73 @@ def authenticate_user(email: str, password: str) -> dict:
         st.error(f"Error authenticating user: {str(e)}")
         return None
 
-def extract_agentcore_response(output: str) -> str:
-    if not output:
-        return "No response from agent."
-
+def invoke_agentcore(query: str) -> str:
+    """Call Bedrock AgentCore API using agentcore CLI"""
     try:
-        # Try parsing entire stdout first
-        parsed = json.loads(output)
-        if isinstance(parsed, dict) and "final_answer" in parsed:
-            return str(parsed["final_answer"]).strip()
-    except:
-        pass
-
-    # Fallback: try to extract JSON substring
-    import re
-
-    json_matches = re.findall(r'\{.*?\}', output, re.DOTALL)
-
-    for match in reversed(json_matches):  # take last JSON block
-        try:
-            candidate = json.loads(match)
-            if isinstance(candidate, dict) and "final_answer" in candidate:
-                return str(candidate["final_answer"]).strip()
-        except:
-            continue
-
-    return "No valid master agent response found."
-
-def invoke_agentcore(query: str):
-    try:
+        import subprocess
+        import json
+        
+        # Create payload as a string
+        payload_str = json.dumps({"prompt": query})
+        
+        # Use agentcore CLI to invoke with longer timeout
         result = subprocess.run(
-            ["agentcore", "invoke", json.dumps({"prompt": query})],
+            ["agentcore", "invoke", payload_str],
             capture_output=True,
             text=True,
-            timeout=600,
-            cwd=os.path.dirname(__file__)
+            timeout=120  # 2 minute timeout
         )
-
-        raw_output = result.stdout
-
-        st.subheader("📦 Raw AgentCore CLI Output")
-        st.code(raw_output if raw_output else "No stdout returned")
-
-        if not raw_output:
-            return None, None
-
-        # Parse CLI JSON
-        try:
-            cli_json = json.loads(raw_output)
-        except Exception as e:
-            st.error(f"Failed to parse CLI JSON: {str(e)}")
-            return None, None
-
-        # Extract response field
-        response_array = cli_json.get("response", [])
-        if not response_array:
-            st.warning("No response field returned from AgentCore.")
-            return None, None
-
-        response_body = response_array[0]
-
-        # Remove b'...' wrapper if present
-        if response_body.startswith("b'") or response_body.startswith('b"'):
-            response_body = response_body[2:-1]
-
-        # Now parse the actual JSON returned by your invoke()
-        try:
-            parsed = json.loads(response_body)
-        except Exception as e:
-            st.error(f"Failed to parse inner response JSON: {str(e)}")
-            st.code(response_body)
-            return None, None
-
-        final_answer = parsed.get("final_answer", "No answer")
-        debug_logs = parsed.get("debug_logs", [])
-
-        return final_answer, debug_logs
-
+        
+        # Check both stdout and stderr for the response
+        output = result.stdout.strip() if result.stdout else ""
+        error_output = result.stderr.strip() if result.stderr else ""
+        
+        # Combine both outputs
+        full_output = output + "\n" + error_output if output and error_output else (output or error_output)
+        
+        if result.returncode == 0 or full_output:
+            if not full_output:
+                return "No response from agent"
+            
+            lines = full_output.split('\n')
+            
+            # Look for "Response: " or just get the actual answer text
+            for i, line in enumerate(lines):
+                if 'Response:' in line:
+                    # Extract everything after "Response:"
+                    response_text = line.split('Response:', 1)[1].strip()
+                    if response_text:
+                        return response_text
+                    # If nothing after colon, get next non-empty line
+                    for next_line in lines[i+1:]:
+                        next_line = next_line.strip()
+                        if next_line and not next_line.startswith('+') and not next_line.startswith('|'):
+                            return next_line
+            
+            # If no Response: found, look for lines with actual content (not metadata)
+            for line in reversed(lines):
+                line = line.strip()
+                # Skip empty lines and metadata lines
+                if line and not line.startswith('+') and not line.startswith('|') and \
+                   not line.startswith('ARN:') and not line.startswith('Logs:') and \
+                   not line.startswith('Session:') and not line.startswith('Request ID:') and \
+                   'bedrock' not in line.lower() and 'dashboard' not in line.lower() and \
+                   'GenAI' not in line:
+                    if len(line) > 5:  # Avoid very short lines
+                        return line
+            
+            # Last resort: return full output if it looks reasonable
+            if full_output and not full_output.startswith('+'):
+                return full_output
+                
+            return "Unable to extract response"
+        else:
+            return f"Error: Agent returned code {result.returncode}"
+            
+    except subprocess.TimeoutExpired:
+        return "⏱️ Error: Agent call timed out. The agent is taking too long to respond."
     except Exception as e:
-        st.error(f"Invocation Error: {str(e)}")
-        return None, None
+        return f"❌ Error invoking agent: {str(e)}"
 
 # Page configuration
 st.set_page_config(page_title="Agent Query System", layout="wide", initial_sidebar_state="expanded")
@@ -177,8 +138,111 @@ st.set_page_config(page_title="Agent Query System", layout="wide", initial_sideb
 # Custom CSS styling
 st.markdown("""
 <style>
-  h1, h2 { color: #0066cc; }
-  .stTextArea textarea, .stTextInput input { border-radius: 8px; }
+    /* Main theme colors */
+    :root {
+        --primary-color: #0066cc;
+        --secondary-color: #00d4ff;
+        --success-color: #00cc66;
+        --danger-color: #ff3333;
+    }
+    
+    /* Header styling */
+    h1 {
+        color: #0066cc;
+        font-size: 2.5em;
+        font-weight: 700;
+        margin-bottom: 10px;
+        background: linear-gradient(135deg, #0066cc 0%, #00d4ff 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    h2 {
+        color: #0066cc;
+        font-size: 1.8em;
+    }
+    
+    /* Text area styling */
+    .stTextArea textarea {
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+        font-size: 16px;
+    }
+    
+    .stTextArea textarea:focus {
+        border-color: #0066cc;
+        box-shadow: 0 0 10px rgba(0, 102, 204, 0.3);
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #0066cc 0%, #00d4ff 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 24px;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 102, 204, 0.3);
+    }
+    
+    /* Input field styling */
+    .stTextInput input {
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+        padding: 10px;
+        font-size: 14px;
+    }
+    
+    .stTextInput input:focus {
+        border-color: #0066cc;
+        box-shadow: 0 0 10px rgba(0, 102, 204, 0.3);
+    }
+    
+    /* Response box styling */
+    .response-box {
+        background: linear-gradient(135deg, #f0f7ff 0%, #e6f2ff 100%);
+        border-left: 5px solid #0066cc;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        box-shadow: 0 4px 12px rgba(0, 102, 204, 0.1);
+    }
+    
+    /* Success message styling */
+    .stSuccess {
+        background-color: #e6f9f0 !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Error message styling */
+    .stError {
+        background-color: #ffe6e6 !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Warning message styling */
+    .stWarning {
+        background-color: #fff8e6 !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f5f7ff 0%, #e8f0ff 100%);
+    }
+    
+    /* Radio button styling */
+    .stRadio > label {
+        font-weight: 600;
+        font-size: 15px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -191,134 +255,144 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'user' not in st.session_state:
     st.session_state.user = None
+
 # Sidebar for authentication
 with st.sidebar:
     st.title("Authentication")
-
+    
     if not st.session_state.authenticated:
         auth_choice = st.radio("Choose action:", ["Login", "Sign Up"])
-
+        
         if auth_choice == "Login":
-            login_email = st.text_input("Email", key="login_email")
-            login_password = st.text_input("Password", type="password", key="login_password")
-
-            if st.button("Login", key="login_btn"):
+            st.subheader("🔓 Login")
+            st.markdown("---")
+            login_email = st.text_input("📧 Email", key="login_email", placeholder="your@email.com")
+            login_password = st.text_input("🔑 Password", type="password", key="login_password", placeholder="••••••••")
+            
+            st.markdown("---")
+            if st.button("✨ Login", key="login_btn", use_container_width=True):
                 user = authenticate_user(login_email, login_password)
                 if user:
                     st.session_state.authenticated = True
                     st.session_state.user = user
                     st.session_state.session_id = f"streamlit-{user['email']}-{uuid.uuid4()}"
+                    st.success(f"🎉 Welcome {user['name']}!")
                     st.rerun()
                 else:
-                    st.error("Invalid email or password")
-
-        else:
-            signup_name = st.text_input("Full Name", key="signup_name")
-            signup_email = st.text_input("Email", key="signup_email")
-            signup_password = st.text_input("Password", type="password", key="signup_password")
-            signup_confirm = st.text_input("Confirm Password", type="password", key="signup_confirm")
-
-            if st.button("Create Account", key="signup_btn"):
+                    st.error("❌ Invalid email or password")
+        
+        else:  # Sign Up
+            st.subheader("📝 Create Account")
+            st.markdown("---")
+            signup_name = st.text_input("👤 Full Name", key="signup_name", placeholder="John Doe")
+            signup_email = st.text_input("📧 Email", key="signup_email", placeholder="your@email.com")
+            signup_password = st.text_input("🔑 Password", type="password", key="signup_password", placeholder="••••••••")
+            signup_confirm = st.text_input("🔐 Confirm Password", type="password", key="signup_confirm", placeholder="••••••••")
+            
+            st.markdown("---")
+            if st.button("✨ Create Account", key="signup_btn", use_container_width=True):
                 if not signup_name or not signup_email or not signup_password:
-                    st.error("All fields are required")
+                    st.error("❌ All fields are required")
                 elif signup_password != signup_confirm:
-                    st.error("Passwords do not match")
+                    st.error("❌ Passwords do not match")
                 elif user_exists(signup_email):
-                    st.error("Email already registered")
+                    st.error("❌ Email already registered")
                 elif create_user(signup_email, signup_password, signup_name):
-                    st.success("Account created. Please login.")
+                    st.success("✅ Account created successfully! Please login.")
                     st.rerun()
                 else:
-                    st.error("Error creating account")
-
+                    st.error("❌ Error creating account")
+    
     else:
-        st.subheader(st.session_state.user['name'])
+        st.subheader(f"👤 {st.session_state.user['name']}")
         st.text(st.session_state.user['email'])
-
+        
         if st.button("Logout", key="logout_btn"):
             st.session_state.authenticated = False
             st.session_state.user = None
             st.rerun()
 
-
-# ================= MAIN CONTENT =================
-
+# Main content
 if st.session_state.authenticated:
-
-    st.title("🤖 Agent Query System")
-
-    if st.button("🚪 Logout", key="logout_btn_top"):
-        st.session_state.authenticated = False
-        st.session_state.user = None
-        st.rerun()
-
+    # Header with user info
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        st.title("🤖 Agent Query System")
+    with col2:
+        st.write("")
+        st.write("")
+        if st.button("🚪 Logout", key="logout_btn_top"):
+            st.session_state.authenticated = False
+            st.session_state.user = None
+            st.rerun()
+    
     st.divider()
-
-    st.info(f"Welcome, {st.session_state.user['name']}! Ask me anything about your data.")
-
+    
+    # Welcome message
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #e6f2ff 0%, #f0f7ff 100%); 
+                padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <p style="margin: 0; font-size: 16px; color: #0066cc;"><strong>Welcome, {st.session_state.user['name']}!</strong></p>
+        <p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">Ask me anything about your data</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.subheader("💬 Ask a Question")
-
-    user_query = st.text_area(
-        "Enter your question:",
-        height=120,
-        placeholder="e.g., How many customers are there?",
-        disabled=st.session_state.is_processing
-    )
-
-    send_btn = st.button(
-        "🚀 Send Query",
-        key="send_query_btn",
-        disabled=st.session_state.is_processing
-    )
-
-    if send_btn and user_query.strip():
-        st.session_state.is_processing = True
-
-        with st.spinner("🔄 Processing your query..."):
-
-            final_answer, debug_logs = invoke_agentcore(user_query)
-
-        st.session_state.is_processing = False
-
-        st.success("✅ Response received!")
-
-        # ---------- Final Answer ----------
-        if final_answer:
-            st.subheader("🧠 Final Answer")
-            st.write(final_answer)
+    user_query = st.text_area("Enter your question:", height=120, placeholder="e.g., How many customers are there?", disabled=st.session_state.is_processing)
+    
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col1:
+        send_btn = st.button("🚀 Send Query", key="send_query_btn", use_container_width=True, disabled=st.session_state.is_processing)
+    
+    if send_btn:
+        if user_query.strip():
+            st.session_state.is_processing = True
+    
+    if st.session_state.is_processing:
+        if user_query.strip():
+            with st.spinner("🔄 Processing your query..."):
+                response = invoke_agentcore(user_query)
+                st.session_state.is_processing = False
+                
+                # Pretty format the response
+                st.markdown("""
+                <div class="response-box">
+                    <h3 style="margin-top: 0; color: #0066cc;">✨ Response</h3>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.success("✅ Response received!")
+                st.markdown(f"""
+                <div style="background: white; padding: 20px; border-radius: 8px; 
+                            border-left: 5px solid #00cc66; margin: 15px 0; 
+                            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);">
+                    <p style="font-size: 16px; line-height: 1.6; color: #333; margin: 0;">
+                        {response}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Store in history
+                try:
+                    queries_table.put_item(
+                        Item={
+                            'query_id': f"{st.session_state.user['email']}-{datetime.utcnow().timestamp()}",
+                            'user_email': st.session_state.user['email'],
+                            'question': user_query,
+                            'answer': response,
+                            'timestamp': datetime.utcnow().isoformat()
+                        }
+                    )
+                except Exception as e:
+                    st.warning(f"⚠️ Could not save to history: {str(e)}")
         else:
-            st.error("No final answer returned.")
-
-        # ---------- Debug Logs ----------
-        if debug_logs:
-            with st.expander("🔎 Debug Logs (Backend Execution)"):
-                for log in debug_logs:
-                    st.text(log)
-
-        # ---------- Store Only Clean Answer ----------
-        try:
-            queries_table.put_item(
-                Item={
-                    'query_id': f"{st.session_state.user['email']}-{datetime.utcnow().timestamp()}",
-                    'user_email': st.session_state.user['email'],
-                    'question': user_query,
-                    'answer': final_answer if final_answer else "No answer",
-                    'timestamp': datetime.utcnow().isoformat()
-                }
-            )
-        except Exception as e:
-            st.warning(f"⚠️ Could not save to history: {str(e)}")
-
-    elif send_btn and not user_query.strip():
-        st.warning("⚠️ Please enter a question before sending")
-
-
-# ================= LOGIN SCREEN =================
+            st.warning("⚠️ Please enter a question before sending")
+            st.session_state.is_processing = False
 
 else:
-
+    # Login/Signup page styling
     col_left, col_center, col_right = st.columns([1, 2, 1])
-
+    
     with col_center:
         st.markdown("""
         <div style="text-align: center; margin-bottom: 30px;">
@@ -332,9 +406,9 @@ else:
             </p>
         </div>
         """, unsafe_allow_html=True)
-
+        
         st.divider()
-
+        
         st.markdown("""
         <div style="text-align: center; margin-bottom: 30px;">
             <p style="font-size: 16px; color: #333; line-height: 1.6;">
