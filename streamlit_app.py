@@ -8,10 +8,10 @@ import os
 import re
 import uuid
 import warnings
-warnings.filterwarnings(
-    "ignore",
-    message="urllib3.*doesn't match a supported version",
-)
+import warnings
+from requests.exceptions import RequestsDependencyWarning
+
+warnings.filterwarnings("ignore", category=RequestsDependencyWarning)
 # Load AWS credentials from Streamlit secrets or environment
 def get_boto3_session():
     """Create boto3 session with credentials from secrets or environment"""
